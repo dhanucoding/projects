@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban To-Do (IndexedDB)</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='%2322c55e'/><polyline points='8,16 13,22 24,10' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f4f8ff; color: #2a3348; min-height: 100vh; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 4px; font-size: 1.6rem; color: #3f4f8c; letter-spacing: 1px; }
+  .subtitle { text-align: center; font-size: 0.78rem; color: #d26b6b; margin-bottom: 14px; }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+  .toolbar button { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity .2s; }
+  .toolbar button:hover { opacity: .85; }
+  #saveBtn { background: #4caf50; color: #fff; }
+  #loadBtn { background: #2196f3; color: #fff; }
+  #fileMenuBtn { background: #5c6bc0; color: #fff; }
+  .file-menu { position: relative; }
+  .file-menu-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 160px;
+    background: #ffffff;
+    border: 1px solid #d8e2f2;
+    border-radius: 10px;
+    box-shadow: 0 8px 20px #2f436214;
+    padding: 8px;
+    z-index: 30;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .file-menu.open .file-menu-panel,
+  .file-menu:focus-within .file-menu-panel { display: flex; }
+  .file-menu-panel button {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    background: #eef3ff;
+    color: #2a3348;
+    border: 1px solid #d8e2f2;
+    border-radius: 8px;
+    font-weight: 600;
+  }
+  .file-menu-panel button:hover { background: #e3ecff; }
+  #clearBoardBtn { background: #e53935; color: #fff; }
+  #exportBtn { background: #ff9800; color: #fff; }
+  #saveStatus { font-size: 0.8rem; padding: 5px 12px; border-radius: 20px; font-weight: 700; transition: all .3s; }
+  #saveStatus.unsaved { background: #c62828; color: #fff; }
+  #saveStatus.saved { background: #2e7d32; color: #fff; }
+  #autoSaveInfo { font-size: 0.72rem; color: #6f7b95; text-align: center; margin-bottom: 10px; }
+
+  /* Search bar */
+  .search-bar { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .search-bar input { background: #ffffff; border: 1px solid #d8e2f2; border-radius: 8px; color: #2a3348; padding: 8px 14px; font-size: 0.85rem; outline: none; width: 240px; }
+  .search-bar input:focus { border-color: #90caf9; }
+  .search-bar select { background: #ffffff; border: 1px solid #d8e2f2; border-radius: 8px; color: #2a3348; padding: 8px 10px; font-size: 0.85rem; outline: none; cursor: pointer; }
+  .clear-search { background: #e8effa; border: none; color: #5d6a85; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.82rem; }
+  .clear-search:hover { background: #dde8f8; }
+
+  /* Board */
+  .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: start; }
+  @media(max-width:900px){ .board { grid-template-columns: repeat(2,1fr); } }
+  @media(max-width:500px){ .board { grid-template-columns: 1fr; } }
+  .col { background: #fbfcfe; border: 1px solid #d7e4fb; border-radius: 12px; padding: 14px; min-height: 300px; }
+  .col[data-col="todo"] { border-color: #bcdcff; }
+  .col[data-col="inprogress"] { border-color: #dccbf0; }
+  .col[data-col="done"] { border-color: #bde8c3; }
+  .col[data-col="deferred"] { border-color: #d4d7dc; }
+  .col.drag-over-col { box-shadow: inset 0 0 0 2px #90a4c6; }
+  .col-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .col-title { font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+  .badge { background: #ffffff; border: 1px solid #d8e2f2; border-radius: 20px; padding: 2px 8px; font-size: 0.75rem; }
+  .col[data-col="todo"] .col-title { color: #245e93; }
+  .col[data-col="inprogress"] .col-title { color: #b5531a; }
+  .col[data-col="done"] .col-title { color: #2f7a43; }
+  .col[data-col="deferred"] .col-title { color: #5f6673; }
+  .add-btn { width: 100%; background: #f9fbff; border: 1px dashed #bdcce7; color: #60708f; border-radius: 8px; padding: 7px; cursor: pointer; font-size: 0.82rem; margin-top: 8px; transition: background .2s; }
+  .add-btn:hover { background: #eef4ff; }
+
+  /* Cards */
+  .card { background: #ffffff; border: 1px solid #d7e4fb; border-radius: 10px; padding: 12px; margin-bottom: 10px; position: relative; cursor: grab; transition: transform .15s, box-shadow .15s, opacity .2s; user-select: none; }
+  .col[data-col="todo"] .card { background: #e6f3ff; border-color: #bcdcff; }
+  .col[data-col="inprogress"] .card { background: #f3e7ff; border-color: #dccbf0; }
+  .col[data-col="done"] .card { background: #e7f7e9; border-color: #bde8c3; }
+  .col[data-col="deferred"] .card { background: #f0f1f3; border-color: #d4d7dc; }
+  .card:active { cursor: grabbing; }
+  .card.dragging { opacity: .4; transform: scale(1.02); }
+  .card.drag-placeholder { border: 2px dashed #7fa8de88; background: #e9f2ff; min-height: 60px; border-radius: 10px; margin-bottom: 10px; }
+  .card.filtered-out { display: none; }
+  .card-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; padding-right: 20px; word-break: break-word; }
+  .card-desc { font-size: 0.78rem; color: #6f7b95; word-break: break-word; margin-bottom: 8px; white-space: pre-wrap; }
+  .card-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-left: 16px; }
+  .priority { font-size: 0.7rem; border-radius: 4px; padding: 2px 7px; font-weight: 700; }
+  .p-high { background: #c62828; color: #fff; }
+  .p-medium { background: #e65100; color: #fff; }
+  .p-low { background: #2e7d32; color: #fff; }
+  .created { font-size: 0.7rem; color: #6f7b95; }
+  .due { font-size: 0.7rem; color: #6f7b95; }
+  .due.overdue { color: #ef9a9a; }
+  .del-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: #b8c4db; cursor: pointer; font-size: 1rem; line-height: 1; transition: color .2s; }
+  .del-btn:hover { color: #ef9a9a; }
+  .drag-handle { position: absolute; top: 50%; left: 6px; transform: translateY(-50%); color: #b8c4db; font-size: 0.9rem; cursor: grab; line-height: 1; }
+
+  /* Modal */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: #000a; z-index: 100; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #f2f7ff; border: 1px solid #d7e4fb; border-radius: 14px; padding: 24px; width: 360px; max-width: 95vw; }
+  .modal h2 { margin-bottom: 16px; font-size: 1rem; color: #3f4f8c; }
+  .modal label { font-size: 0.8rem; color: #6f7b95; display: block; margin-bottom: 4px; margin-top: 12px; }
+  .modal input, .modal textarea, .modal select { width: 100%; background: #ffffff; border: 1px solid #d8e2f2; border-radius: 8px; color: #2a3348; padding: 8px 10px; font-size: 0.85rem; outline: none; }
+  .modal textarea { resize: vertical; min-height: 70px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+  .modal-actions button { padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+  #modalCancel { background: #e6eef9; color: #2a3348; }
+  #modalSave { background: #4caf50; color: #fff; }
+
+  /* Confirm dialog */
+  .confirm-backdrop { display: none; position: fixed; inset: 0; background: #000b; z-index: 300; align-items: center; justify-content: center; }
+  .confirm-backdrop.open { display: flex; }
+  .confirm-box { background: #f2f7ff; border: 1px solid #d7e4fb; border-radius: 14px; padding: 24px; width: 320px; max-width: 95vw; text-align: center; }
+  .confirm-box p { color: #2a3348; font-size: 0.88rem; margin-bottom: 18px; line-height: 1.5; }
+  .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+  .confirm-actions button { padding: 8px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+  #confirmOk { background: #c62828; color: #fff; }
+  #confirmCancel { background: #e6eef9; color: #2a3348; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #4f5e7d; color: #fff; padding: 10px 22px; border-radius: 30px; font-size: 0.85rem; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; }
+  mark { background: #ffcc0066; color: inherit; border-radius: 2px; }
+</style>
+</head>
+<body>
+<h1>📋 Kanban Board</h1>
+<p class="subtitle">All data stays on your machine — no server involved</p>
+
+<div class="toolbar">
+  <button id="saveBtn">💾 Save Local</button>
+  <button id="loadBtn">🔄 Reload Local</button>
+  <button id="clearBoardBtn">🧹 Clear Board</button>
+  <button id="exportBtn">📄 Export Summary</button>
+  <span id="saveStatus" class="saved">✔ Saved</span>
+  <div class="file-menu">
+    <button id="fileMenuBtn" title="File options" aria-label="File options">📁</button>
+    <div class="file-menu-panel">
+      <button id="loadFileBtn">📂 Load from File</button>
+      <button id="saveFileBtn">💾 Save to File</button>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept=".json" style="display:none">
+</div>
+<div id="autoSaveInfo">🔄 Auto-save to IndexedDB every 60 s</div>
+
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="🔍 Search tasks…">
+  <select id="filterPriority">
+    <option value="">All Priorities</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <button class="clear-search" id="clearSearch">✕ Clear</button>
+</div>
+
+<div class="board" id="board">
+  <div class="col" data-col="todo">
+    <div class="col-header"><span class="col-title">📝 To-Do</span><span class="badge" id="cnt-todo">0</span></div>
+    <div class="cards" id="cards-todo"></div>
+    <button class="add-btn" data-col="todo">+ Add Task</button>
+  </div>
+  <div class="col" data-col="inprogress">
+    <div class="col-header"><span class="col-title">🔄 In Progress</span><span class="badge" id="cnt-inprogress">0</span></div>
+    <div class="cards" id="cards-inprogress"></div>
+    <button class="add-btn" data-col="inprogress">+ Add Task</button>
+  </div>
+  <div class="col" data-col="done">
+    <div class="col-header"><span class="col-title">✅ Done</span><span class="badge" id="cnt-done">0</span></div>
+    <div class="cards" id="cards-done"></div>
+    <button class="add-btn" data-col="done">+ Add Task</button>
+  </div>
+  <div class="col" data-col="deferred">
+    <div class="col-header"><span class="col-title">⏸ Deferred</span><span class="badge" id="cnt-deferred">0</span></div>
+    <div class="cards" id="cards-deferred"></div>
+    <button class="add-btn" data-col="deferred">+ Add Task</button>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2 id="modalTitle">Add Task</h2>
+    <label>Title *</label>
+    <input type="text" id="mTitle" placeholder="Task title">
+    <label>Description</label>
+    <textarea id="mDesc" placeholder="Optional notes…"></textarea>
+    <label>Priority</label>
+    <select id="mPriority">
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="low">Low</option>
+    </select>
+    <label>Due Date</label>
+    <input type="date" id="mDue">
+    <div class="modal-actions">
+      <button id="modalCancel">Cancel</button>
+      <button id="modalSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-backdrop" id="confirmBackdrop">
+  <div class="confirm-box">
+    <p id="confirmMsg"></p>
+    <div class="confirm-actions">
+      <button id="confirmCancel">Cancel</button>
+      <button id="confirmOk">Proceed</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let tasks = [];
+let savedSnapshot = JSON.stringify([]);
+let dragId = null, dragOverId = null;
+let editId = null, modalCol = null;
+let confirmCallback = null;
+const COLS = ['todo','inprogress','done','deferred'];
+const DB_NAME = 'kanban_tracker_db';
+const DB_VERSION = 1;
+const STORE_NAME = 'state';
+const STATE_KEY = 'board_state';
+const DEFAULT_TASKS_FILE = 'kanban-tasks.json';
+const PACIFIC_TZ = 'America/Los_Angeles';
+
+function formatPacificDateTime(value) {
+  if (!value) return '-';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value + ' 12:00 AM PT';
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'short'
+  }).format(d);
+}
+
+function formatPacificDateOnly(value) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    return String(value);
+  }
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PACIFIC_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(d);
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return y && m && day ? `${y}-${m}-${day}` : '-';
+}
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSaveState() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put({ ts: Date.now(), tasks }, STATE_KEY);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+async function idbLoadState() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(STATE_KEY);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+// ── Unsaved state ──────────────────────────────────────────
+function markUnsaved() {
+  const el = document.getElementById('saveStatus');
+  el.textContent = '● Unsaved'; el.className = 'unsaved';
+}
+function markSaved() {
+  const el = document.getElementById('saveStatus');
+  el.textContent = '✔ Saved'; el.className = 'saved';
+}
+function isDirty() { return JSON.stringify(tasks) !== savedSnapshot; }
+
+window.addEventListener('beforeunload', e => {
+  if (isDirty()) { e.preventDefault(); e.returnValue = 'You have unsaved changes — save your file before leaving!'; }
+});
+
+// ── Auto-save to IndexedDB ─────────────────────────────────
+function autoSave() {
+  idbSaveState()
+    .then(() => {
+      document.getElementById('autoSaveInfo').textContent =
+        '🔄 Auto-save: ' + formatPacificDateTime(Date.now());
+    })
+    .catch(() => showToast('⚠ Auto-save failed'));
+}
+setInterval(autoSave, 60000);
+
+// ── Confirm dialog helper ──────────────────────────────────
+function confirm(msg, cb) {
+  document.getElementById('confirmMsg').textContent = msg;
+  document.getElementById('confirmBackdrop').classList.add('open');
+  confirmCallback = cb;
+}
+document.getElementById('confirmOk').addEventListener('click', () => {
+  document.getElementById('confirmBackdrop').classList.remove('open');
+  if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+});
+document.getElementById('confirmCancel').addEventListener('click', () => {
+  document.getElementById('confirmBackdrop').classList.remove('open');
+  confirmCallback = null;
+});
+
+// ── Render ─────────────────────────────────────────────────
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+  return esc(text).replace(re, '<mark>$1</mark>');
+}
+
+function getFilters() {
+  return {
+    q: document.getElementById('searchInput').value.trim().toLowerCase(),
+    p: document.getElementById('filterPriority').value
+  };
+}
+
+function render() {
+  const { q, p } = getFilters();
+  COLS.forEach(col => {
+    const container = document.getElementById('cards-' + col);
+    const colTasks = tasks.filter(t => t.col === col);
+    let visible = 0;
+    container.innerHTML = '';
+    colTasks.forEach(t => {
+      const matchQ = !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q);
+      const matchP = !p || t.priority === p;
+      if (!matchQ || !matchP) return;
+      visible++;
+      const today = new Date().toISOString().slice(0,10);
+      const created = formatPacificDateOnly(t.created);
+      const overdue = t.due && t.due < today && col !== 'done';
+      const dueLabel = t.due ? formatPacificDateOnly(t.due) : '-';
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.draggable = true;
+      el.dataset.id = t.id;
+      el.innerHTML = `
+        <span class="drag-handle" title="Drag">⠿</span>
+        <button class="del-btn" data-id="${t.id}" title="Delete">×</button>
+        <div class="card-title" style="padding-left:16px">${highlight(t.title, q)}</div>
+        ${t.desc ? `<div class="card-desc" style="padding-left:16px">${highlight(t.desc, q)}</div>` : ''}
+        <div class="card-meta">
+          <span class="priority p-${t.priority}">${t.priority.toUpperCase()}</span>
+          <span class="created">${created}</span>
+          <span class="due${overdue?' overdue':''}">${t.due ? `${overdue?'⚠ ':''}${dueLabel}` : '-'}</span>
+        </div>`;
+      el.addEventListener('click', e => { if (!e.target.classList.contains('del-btn')) openModal(col, t.id); });
+      // drag events
+      el.addEventListener('dragstart', onDragStart);
+      el.addEventListener('dragend', onDragEnd);
+      el.addEventListener('dragover', onCardDragOver);
+      el.addEventListener('drop', onCardDrop);
+      container.appendChild(el);
+    });
+    document.getElementById('cnt-' + col).textContent = visible + (visible < colTasks.length ? `/${colTasks.length}` : '');
+  });
+}
+
+// ── Drag & Drop (inter + intra column) ────────────────────
+function onDragStart(e) {
+  dragId = this.dataset.id;
+  setTimeout(() => this.classList.add('dragging'), 0);
+}
+function onDragEnd() {
+  dragId = null; dragOverId = null;
+  document.querySelectorAll('.card.dragging').forEach(c => c.classList.remove('dragging'));
+  document.querySelectorAll('.drag-placeholder').forEach(p => p.remove());
+}
+function onCardDragOver(e) {
+  e.preventDefault();
+  if (!dragId || this.dataset.id === dragId) return;
+  dragOverId = this.dataset.id;
+}
+function onCardDrop(e) {
+  e.preventDefault(); e.stopPropagation();
+  if (!dragId || dragId === this.dataset.id) return;
+  const fromIdx = tasks.findIndex(t => t.id === dragId);
+  const toIdx   = tasks.findIndex(t => t.id === this.dataset.id);
+  if (fromIdx < 0 || toIdx < 0) return;
+  tasks[fromIdx].col = tasks[toIdx].col;
+  const [moved] = tasks.splice(fromIdx, 1);
+  tasks.splice(toIdx, 0, moved);
+  markUnsaved(); autoSave(); render();
+}
+
+document.querySelectorAll('.col').forEach(col => {
+  col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over-col'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drag-over-col'));
+  col.addEventListener('drop', e => {
+    e.preventDefault();
+    col.classList.remove('drag-over-col');
+    if (dragId && !e.target.closest('.card')) {
+      const t = tasks.find(t => t.id === dragId);
+      if (t) { t.col = col.dataset.col; markUnsaved(); autoSave(); render(); }
+    }
+  });
+});
+
+// ── Add / Edit Modal ───────────────────────────────────────
+document.querySelectorAll('.add-btn').forEach(btn => btn.addEventListener('click', () => openModal(btn.dataset.col)));
+
+function openModal(col, id = null) {
+  editId = id; modalCol = col;
+  document.getElementById('modalTitle').textContent = id ? 'Edit Task' : 'Add Task';
+  const t = id ? tasks.find(t => t.id === id) : null;
+  document.getElementById('mTitle').value    = t ? t.title : '';
+  document.getElementById('mDesc').value     = t ? (t.desc || '') : '';
+  document.getElementById('mPriority').value = t ? t.priority : 'medium';
+  document.getElementById('mDue').value      = t ? (t.due || '') : '';
+  document.getElementById('modalBackdrop').classList.add('open');
+  document.getElementById('mTitle').focus();
+}
+document.getElementById('modalCancel').addEventListener('click', closeModal);
+document.getElementById('modalBackdrop').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); editId = null; }
+
+document.getElementById('modalSave').addEventListener('click', () => {
+  const title = document.getElementById('mTitle').value.trim();
+  if (!title) { document.getElementById('mTitle').style.borderColor='#ef5350'; return; }
+  document.getElementById('mTitle').style.borderColor='';
+  const nowIso = new Date().toISOString();
+  const existing = editId ? tasks.find(t => t.id === editId) : null;
+  const data = {
+    title,
+    desc: document.getElementById('mDesc').value.trim(),
+    priority: document.getElementById('mPriority').value,
+    created: existing ? (existing.created || nowIso) : nowIso,
+    due: document.getElementById('mDue').value
+  };
+  if (editId) { Object.assign(tasks.find(t => t.id === editId), data); }
+  else { tasks.push({ id: uid(), col: modalCol, ...data }); }
+  closeModal(); markUnsaved(); autoSave(); render();
+});
+
+// Delete
+document.getElementById('board').addEventListener('click', e => {
+  if (e.target.classList.contains('del-btn')) {
+    tasks = tasks.filter(t => t.id !== e.target.dataset.id);
+    markUnsaved(); autoSave(); render();
+  }
+});
+
+// ── Search & Filter ────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('filterPriority').addEventListener('change', render);
+document.getElementById('clearSearch').addEventListener('click', () => {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('filterPriority').value = '';
+  render();
+});
+
+// ── Save/Load local (IndexedDB) ───────────────────────────
+const fileMenuEl = document.querySelector('.file-menu');
+const fileMenuBtn = document.getElementById('fileMenuBtn');
+let fileMenuCloseTimer = null;
+
+function openFileMenu() {
+  if (fileMenuCloseTimer) clearTimeout(fileMenuCloseTimer);
+  fileMenuEl.classList.add('open');
+}
+
+function scheduleCloseFileMenu() {
+  if (fileMenuCloseTimer) clearTimeout(fileMenuCloseTimer);
+  fileMenuCloseTimer = setTimeout(() => fileMenuEl.classList.remove('open'), 140);
+}
+
+fileMenuEl.addEventListener('mouseenter', openFileMenu);
+fileMenuEl.addEventListener('mouseleave', scheduleCloseFileMenu);
+fileMenuBtn.addEventListener('click', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (fileMenuEl.classList.contains('open')) fileMenuEl.classList.remove('open');
+  else openFileMenu();
+});
+document.addEventListener('click', e => {
+  if (!fileMenuEl.contains(e.target)) fileMenuEl.classList.remove('open');
+});
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  try {
+    await idbSaveState();
+    savedSnapshot = JSON.stringify(tasks);
+    markSaved();
+    showToast('✅ Saved locally (IndexedDB)');
+  } catch {
+    showToast('❌ Local save failed');
+  }
+});
+
+document.getElementById('saveFileBtn').addEventListener('click', () => {
+  fileMenuEl.classList.remove('open');
+  const blob = new Blob([JSON.stringify({ version: 1, tasks }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = DEFAULT_TASKS_FILE;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('📁 Saved to file: ' + DEFAULT_TASKS_FILE);
+});
+
+async function importFromText(text) {
+  const data = JSON.parse(text);
+  const imported = Array.isArray(data.tasks) ? data.tasks : [];
+  tasks = imported;
+  render();
+  markUnsaved();
+  try {
+    await idbSaveState();
+    savedSnapshot = JSON.stringify(tasks);
+    markSaved();
+    showToast('📂 Loaded ' + tasks.length + ' tasks from file');
+  } catch {
+    showToast('⚠ Loaded file, but local sync failed');
+  }
+}
+
+function triggerLoadFromFile() {
+  const input = document.getElementById('fileInput');
+  input.value = '';
+  input.click();
+}
+
+document.getElementById('loadFileBtn').addEventListener('click', () => {
+  fileMenuEl.classList.remove('open');
+  if (isDirty()) {
+    confirm('You have unsaved changes. Loading a file will replace your current board. Proceed?', () => triggerLoadFromFile());
+    return;
+  }
+  triggerLoadFromFile();
+});
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = async ev => {
+    try {
+      await importFromText(ev.target.result);
+    } catch {
+      showToast('❌ Invalid file');
+    }
+  };
+  r.readAsText(file);
+});
+
+document.getElementById('clearBoardBtn').addEventListener('click', () => {
+  if (!tasks.length) { showToast('Board is already empty'); return; }
+  confirm('⚠ Clear all tasks from the board? This cannot be undone.', async () => {
+    tasks = [];
+    render();
+    markUnsaved();
+    try {
+      await idbSaveState();
+      savedSnapshot = JSON.stringify(tasks);
+      markSaved();
+      showToast('🧹 Board cleared');
+    } catch {
+      showToast('❌ Clear succeeded, but local save failed');
+    }
+  });
+});
+
+// ── Load from local (with guard) ───────────────────────────
+document.getElementById('loadBtn').addEventListener('click', () => {
+  if (isDirty()) {
+    confirm('You have unsaved changes. Reloading local data will replace your current board. Proceed?', () => triggerLoad());
+  } else { triggerLoad(); }
+});
+
+async function triggerLoad() {
+  try {
+    const state = await idbLoadState();
+    tasks = state && Array.isArray(state.tasks) ? state.tasks : [];
+    savedSnapshot = JSON.stringify(tasks);
+    markSaved();
+    render();
+    showToast('📂 Reloaded ' + tasks.length + ' tasks from local storage');
+  } catch {
+    showToast('❌ Local load failed');
+  }
+}
+
+// ── Export summary ─────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const labels = { todo:'TO-DO', inprogress:'IN PROGRESS', done:'DONE', deferred:'DEFERRED' };
+  const lines = ['KANBAN BOARD SUMMARY','='.repeat(40),`Exported: ${formatPacificDateTime(Date.now())}`,''];
+  COLS.forEach(col => {
+    const ct = tasks.filter(t => t.col === col);
+    lines.push(`\n── ${labels[col]} (${ct.length}) ──`);
+    if (!ct.length) { lines.push('  (empty)'); return; }
+    ct.forEach((t,i) => {
+      lines.push(`  ${i+1}. [${t.priority.toUpperCase()}] ${t.title}${t.due?' (due: '+t.due+')':''}`);
+      if (t.desc) lines.push(`     ${t.desc}`);
+    });
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kanban-summary.txt'; a.click();
+  showToast('📄 Summary exported');
+});
+
+// ── Toast ──────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+// ── Startup restore ────────────────────────────────────────
+window.addEventListener('load', async () => {
+  try {
+    const state = await idbLoadState();
+    if (state && Array.isArray(state.tasks)) {
+      tasks = state.tasks;
+      savedSnapshot = JSON.stringify(tasks);
+      markSaved();
+      render();
+      showToast('💾 Restored local board from ' + formatPacificDateTime(state.ts || Date.now()));
+      return;
+    }
+  } catch {
+    showToast('⚠ Could not read local data');
+  }
+  render();
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban To-Do</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f4f8ff; color: #2a3348; min-height: 100vh; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 4px; font-size: 1.6rem; color: #3f4f8c; letter-spacing: 1px; }
+  .subtitle { text-align: center; font-size: 0.78rem; color: #d26b6b; margin-bottom: 14px; }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+  .toolbar button { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity .2s; }
+  .toolbar button:hover { opacity: .85; }
+  #saveBtn { background: #4caf50; color: #fff; }
+  #loadBtn { background: #2196f3; color: #fff; }
+  #exportBtn { background: #ff9800; color: #fff; }
+  #saveStatus { font-size: 0.8rem; padding: 5px 12px; border-radius: 20px; font-weight: 700; transition: all .3s; }
+  #saveStatus.unsaved { background: #c62828; color: #fff; }
+  #saveStatus.saved { background: #2e7d32; color: #fff; }
+  #autoSaveInfo { font-size: 0.72rem; color: #6f7b95; text-align: center; margin-bottom: 10px; }
+
+  /* Search bar */
+  .search-bar { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .search-bar input { background: #ffffff; border: 1px solid #d8e2f2; border-radius: 8px; color: #2a3348; padding: 8px 14px; font-size: 0.85rem; outline: none; width: 240px; }
+  .search-bar input:focus { border-color: #90caf9; }
+  .search-bar select { background: #ffffff; border: 1px solid #d8e2f2; border-radius: 8px; color: #2a3348; padding: 8px 10px; font-size: 0.85rem; outline: none; cursor: pointer; }
+  .clear-search { background: #e8effa; border: none; color: #5d6a85; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.82rem; }
+  .clear-search:hover { background: #dde8f8; }
+
+  /* Board */
+  .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: start; }
+  @media(max-width:900px){ .board { grid-template-columns: repeat(2,1fr); } }
+  @media(max-width:500px){ .board { grid-template-columns: 1fr; } }
+  .col { background: #fbfcfe; border: 1px solid #d7e4fb; border-radius: 12px; padding: 14px; min-height: 300px; }
+  .col[data-col="todo"] { border-color: #bcdcff; }
+  .col[data-col="inprogress"] { border-color: #dccbf0; }
+  .col[data-col="done"] { border-color: #bde8c3; }
+  .col[data-col="deferred"] { border-color: #d4d7dc; }
+  .col.drag-over-col { box-shadow: inset 0 0 0 2px #90a4c6; }
+  .col-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .col-title { font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+  .badge { background: #ffffff; border: 1px solid #d8e2f2; border-radius: 20px; padding: 2px 8px; font-size: 0.75rem; }
+  .col[data-col="todo"] .col-title { color: #245e93; }
+  .col[data-col="inprogress"] .col-title { color: #b5531a; }
+  .col[data-col="done"] .col-title { color: #2f7a43; }
+  .col[data-col="deferred"] .col-title { color: #5f6673; }
+  .add-btn { width: 100%; background: #f9fbff; border: 1px dashed #bdcce7; color: #60708f; border-radius: 8px; padding: 7px; cursor: pointer; font-size: 0.82rem; margin-top: 8px; transition: background .2s; }
+  .add-btn:hover { background: #eef4ff; }
+
+  /* Cards */
+  .card { background: #ffffff; border: 1px solid #d7e4fb; border-radius: 10px; padding: 12px; margin-bottom: 10px; position: relative; cursor: grab; transition: transform .15s, box-shadow .15s, opacity .2s; user-select: none; }
+  .col[data-col="todo"] .card { background: #e6f3ff; border-color: #bcdcff; }
+  .col[data-col="inprogress"] .card { background: #f3e7ff; border-color: #dccbf0; }
+  .col[data-col="done"] .card { background: #e7f7e9; border-color: #bde8c3; }
+  .col[data-col="deferred"] .card { background: #f0f1f3; border-color: #d4d7dc; }
+  .card:active { cursor: grabbing; }
+  .card.dragging { opacity: .4; transform: scale(1.02); }
+  .card.drag-placeholder { border: 2px dashed #7fa8de88; background: #e9f2ff; min-height: 60px; border-radius: 10px; margin-bottom: 10px; }
+  .card.filtered-out { display: none; }
+  .card-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; padding-right: 20px; word-break: break-word; }
+  .card-desc { font-size: 0.78rem; color: #6f7b95; word-break: break-word; margin-bottom: 8px; white-space: pre-wrap; }
+  .card-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-left: 16px; }
+  .priority { font-size: 0.7rem; border-radius: 4px; padding: 2px 7px; font-weight: 700; }
+  .p-high { background: #c62828; color: #fff; }
+  .p-medium { background: #e65100; color: #fff; }
+  .p-low { background: #2e7d32; color: #fff; }
+  .created { font-size: 0.7rem; color: #6f7b95; }
+  .due { font-size: 0.7rem; color: #6f7b95; }
+  .due.overdue { color: #ef9a9a; }
+  .del-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; color: #b8c4db; cursor: pointer; font-size: 1rem; line-height: 1; transition: color .2s; }
+  .del-btn:hover { color: #ef9a9a; }
+  .drag-handle { position: absolute; top: 50%; left: 6px; transform: translateY(-50%); color: #b8c4db; font-size: 0.9rem; cursor: grab; line-height: 1; }
+
+  /* Modal */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: #000a; z-index: 100; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #f2f7ff; border: 1px solid #d7e4fb; border-radius: 14px; padding: 24px; width: 360px; max-width: 95vw; }
+  .modal h2 { margin-bottom: 16px; font-size: 1rem; color: #3f4f8c; }
+  .modal label { font-size: 0.8rem; color: #6f7b95; display: block; margin-bottom: 4px; margin-top: 12px; }
+  .modal input, .modal textarea, .modal select { width: 100%; background: #ffffff; border: 1px solid #d8e2f2; border-radius: 8px; color: #2a3348; padding: 8px 10px; font-size: 0.85rem; outline: none; }
+  .modal textarea { resize: vertical; min-height: 70px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+  .modal-actions button { padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+  #modalCancel { background: #e6eef9; color: #2a3348; }
+  #modalSave { background: #4caf50; color: #fff; }
+
+  /* Confirm dialog */
+  .confirm-backdrop { display: none; position: fixed; inset: 0; background: #000b; z-index: 300; align-items: center; justify-content: center; }
+  .confirm-backdrop.open { display: flex; }
+  .confirm-box { background: #f2f7ff; border: 1px solid #d7e4fb; border-radius: 14px; padding: 24px; width: 320px; max-width: 95vw; text-align: center; }
+  .confirm-box p { color: #2a3348; font-size: 0.88rem; margin-bottom: 18px; line-height: 1.5; }
+  .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+  .confirm-actions button { padding: 8px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+  #confirmOk { background: #c62828; color: #fff; }
+  #confirmCancel { background: #e6eef9; color: #2a3348; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #4f5e7d; color: #fff; padding: 10px 22px; border-radius: 30px; font-size: 0.85rem; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; }
+  mark { background: #ffcc0066; color: inherit; border-radius: 2px; }
+</style>
+</head>
+<body>
+<h1>📋 Kanban Board</h1>
+<p class="subtitle">All data stays on your machine — no server involved</p>
+
+<div class="toolbar">
+  <button id="saveBtn">💾 Save to File</button>
+  <button id="loadBtn">📂 Load from File</button>
+  <button id="exportBtn">📄 Export Summary</button>
+  <span id="saveStatus" class="saved">✔ Saved</span>
+  <input type="file" id="fileInput" accept=".json" style="display:none">
+</div>
+<div id="autoSaveInfo">🔄 Auto-backup to browser memory every 60 s</div>
+
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="🔍 Search tasks…">
+  <select id="filterPriority">
+    <option value="">All Priorities</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <button class="clear-search" id="clearSearch">✕ Clear</button>
+</div>
+
+<div class="board" id="board">
+  <div class="col" data-col="todo">
+    <div class="col-header"><span class="col-title">📝 To-Do</span><span class="badge" id="cnt-todo">0</span></div>
+    <div class="cards" id="cards-todo"></div>
+    <button class="add-btn" data-col="todo">+ Add Task</button>
+  </div>
+  <div class="col" data-col="inprogress">
+    <div class="col-header"><span class="col-title">🔄 In Progress</span><span class="badge" id="cnt-inprogress">0</span></div>
+    <div class="cards" id="cards-inprogress"></div>
+    <button class="add-btn" data-col="inprogress">+ Add Task</button>
+  </div>
+  <div class="col" data-col="done">
+    <div class="col-header"><span class="col-title">✅ Done</span><span class="badge" id="cnt-done">0</span></div>
+    <div class="cards" id="cards-done"></div>
+    <button class="add-btn" data-col="done">+ Add Task</button>
+  </div>
+  <div class="col" data-col="deferred">
+    <div class="col-header"><span class="col-title">⏸ Deferred</span><span class="badge" id="cnt-deferred">0</span></div>
+    <div class="cards" id="cards-deferred"></div>
+    <button class="add-btn" data-col="deferred">+ Add Task</button>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2 id="modalTitle">Add Task</h2>
+    <label>Title *</label>
+    <input type="text" id="mTitle" placeholder="Task title">
+    <label>Description</label>
+    <textarea id="mDesc" placeholder="Optional notes…"></textarea>
+    <label>Priority</label>
+    <select id="mPriority">
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="low">Low</option>
+    </select>
+    <label>Due Date</label>
+    <input type="date" id="mDue">
+    <div class="modal-actions">
+      <button id="modalCancel">Cancel</button>
+      <button id="modalSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-backdrop" id="confirmBackdrop">
+  <div class="confirm-box">
+    <p id="confirmMsg"></p>
+    <div class="confirm-actions">
+      <button id="confirmCancel">Cancel</button>
+      <button id="confirmOk">Proceed</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let tasks = [];
+let savedSnapshot = JSON.stringify([]);
+let dragId = null, dragOverId = null;
+let editId = null, modalCol = null;
+let confirmCallback = null;
+const COLS = ['todo','inprogress','done','deferred'];
+const AUTO_SAVE_KEY = 'kanban_autosave';
+const DEFAULT_TASKS_FILE = 'kanban-tasks.json';
+let saveFileHandle = null;
+
+// ── Unsaved state ──────────────────────────────────────────
+function markUnsaved() {
+  const el = document.getElementById('saveStatus');
+  el.textContent = '● Unsaved'; el.className = 'unsaved';
+}
+function markSaved() {
+  const el = document.getElementById('saveStatus');
+  el.textContent = '✔ Saved'; el.className = 'saved';
+}
+function isDirty() { return JSON.stringify(tasks) !== savedSnapshot; }
+
+window.addEventListener('beforeunload', e => {
+  if (isDirty()) { e.preventDefault(); e.returnValue = 'You have unsaved changes — save your file before leaving!'; }
+});
+
+// ── Auto-save to browser memory ────────────────────────────
+function autoSave() {
+  try {
+    localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify({ ts: Date.now(), tasks }));
+    document.getElementById('autoSaveInfo').textContent =
+      '🔄 Auto-backup: ' + new Date().toLocaleTimeString();
+  } catch(e) {}
+}
+setInterval(autoSave, 60000);
+
+// ── Confirm dialog helper ──────────────────────────────────
+function confirm(msg, cb) {
+  document.getElementById('confirmMsg').textContent = msg;
+  document.getElementById('confirmBackdrop').classList.add('open');
+  confirmCallback = cb;
+}
+document.getElementById('confirmOk').addEventListener('click', () => {
+  document.getElementById('confirmBackdrop').classList.remove('open');
+  if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+});
+document.getElementById('confirmCancel').addEventListener('click', () => {
+  document.getElementById('confirmBackdrop').classList.remove('open');
+  confirmCallback = null;
+});
+
+// ── Render ─────────────────────────────────────────────────
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+  return esc(text).replace(re, '<mark>$1</mark>');
+}
+
+function getFilters() {
+  return {
+    q: document.getElementById('searchInput').value.trim().toLowerCase(),
+    p: document.getElementById('filterPriority').value
+  };
+}
+
+function render() {
+  const { q, p } = getFilters();
+  COLS.forEach(col => {
+    const container = document.getElementById('cards-' + col);
+    const colTasks = tasks.filter(t => t.col === col);
+    let visible = 0;
+    container.innerHTML = '';
+    colTasks.forEach(t => {
+      const matchQ = !q || t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q);
+      const matchP = !p || t.priority === p;
+      if (!matchQ || !matchP) return;
+      visible++;
+      const today = new Date().toISOString().slice(0,10);
+      const created = t.created || '-';
+      const overdue = t.due && t.due < today && col !== 'done';
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.draggable = true;
+      el.dataset.id = t.id;
+      el.innerHTML = `
+        <span class="drag-handle" title="Drag">⠿</span>
+        <button class="del-btn" data-id="${t.id}" title="Delete">×</button>
+        <div class="card-title" style="padding-left:16px">${highlight(t.title, q)}</div>
+        ${t.desc ? `<div class="card-desc" style="padding-left:16px">${highlight(t.desc, q)}</div>` : ''}
+        <div class="card-meta">
+          <span class="priority p-${t.priority}">${t.priority.toUpperCase()}</span>
+          <span class="created">${created}</span>
+          <span class="due${overdue?' overdue':''}">${t.due ? `${overdue?'⚠ ':''}${t.due}` : '-'}</span>
+        </div>`;
+      el.addEventListener('click', e => { if (!e.target.classList.contains('del-btn')) openModal(col, t.id); });
+      // drag events
+      el.addEventListener('dragstart', onDragStart);
+      el.addEventListener('dragend', onDragEnd);
+      el.addEventListener('dragover', onCardDragOver);
+      el.addEventListener('drop', onCardDrop);
+      container.appendChild(el);
+    });
+    document.getElementById('cnt-' + col).textContent = visible + (visible < colTasks.length ? `/${colTasks.length}` : '');
+  });
+}
+
+// ── Drag & Drop (inter + intra column) ────────────────────
+function onDragStart(e) {
+  dragId = this.dataset.id;
+  setTimeout(() => this.classList.add('dragging'), 0);
+}
+function onDragEnd() {
+  dragId = null; dragOverId = null;
+  document.querySelectorAll('.card.dragging').forEach(c => c.classList.remove('dragging'));
+  document.querySelectorAll('.drag-placeholder').forEach(p => p.remove());
+}
+function onCardDragOver(e) {
+  e.preventDefault();
+  if (!dragId || this.dataset.id === dragId) return;
+  dragOverId = this.dataset.id;
+}
+function onCardDrop(e) {
+  e.preventDefault(); e.stopPropagation();
+  if (!dragId || dragId === this.dataset.id) return;
+  const fromIdx = tasks.findIndex(t => t.id === dragId);
+  const toIdx   = tasks.findIndex(t => t.id === this.dataset.id);
+  if (fromIdx < 0 || toIdx < 0) return;
+  tasks[fromIdx].col = tasks[toIdx].col;
+  const [moved] = tasks.splice(fromIdx, 1);
+  tasks.splice(toIdx, 0, moved);
+  markUnsaved(); autoSave(); render();
+}
+
+document.querySelectorAll('.col').forEach(col => {
+  col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over-col'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drag-over-col'));
+  col.addEventListener('drop', e => {
+    e.preventDefault();
+    col.classList.remove('drag-over-col');
+    if (dragId && !e.target.closest('.card')) {
+      const t = tasks.find(t => t.id === dragId);
+      if (t) { t.col = col.dataset.col; markUnsaved(); autoSave(); render(); }
+    }
+  });
+});
+
+// ── Add / Edit Modal ───────────────────────────────────────
+document.querySelectorAll('.add-btn').forEach(btn => btn.addEventListener('click', () => openModal(btn.dataset.col)));
+
+function openModal(col, id = null) {
+  editId = id; modalCol = col;
+  document.getElementById('modalTitle').textContent = id ? 'Edit Task' : 'Add Task';
+  const t = id ? tasks.find(t => t.id === id) : null;
+  document.getElementById('mTitle').value    = t ? t.title : '';
+  document.getElementById('mDesc').value     = t ? (t.desc || '') : '';
+  document.getElementById('mPriority').value = t ? t.priority : 'medium';
+  document.getElementById('mDue').value      = t ? (t.due || '') : '';
+  document.getElementById('modalBackdrop').classList.add('open');
+  document.getElementById('mTitle').focus();
+}
+document.getElementById('modalCancel').addEventListener('click', closeModal);
+document.getElementById('modalBackdrop').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); editId = null; }
+
+document.getElementById('modalSave').addEventListener('click', () => {
+  const title = document.getElementById('mTitle').value.trim();
+  if (!title) { document.getElementById('mTitle').style.borderColor='#ef5350'; return; }
+  document.getElementById('mTitle').style.borderColor='';
+  const today = new Date().toISOString().slice(0,10);
+  const existing = editId ? tasks.find(t => t.id === editId) : null;
+  const data = {
+    title,
+    desc: document.getElementById('mDesc').value.trim(),
+    priority: document.getElementById('mPriority').value,
+    created: existing ? (existing.created || today) : today,
+    due: document.getElementById('mDue').value
+  };
+  if (editId) { Object.assign(tasks.find(t => t.id === editId), data); }
+  else { tasks.push({ id: uid(), col: modalCol, ...data }); }
+  closeModal(); markUnsaved(); autoSave(); render();
+});
+
+// Delete
+document.getElementById('board').addEventListener('click', e => {
+  if (e.target.classList.contains('del-btn')) {
+    tasks = tasks.filter(t => t.id !== e.target.dataset.id);
+    markUnsaved(); autoSave(); render();
+  }
+});
+
+// ── Search & Filter ────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('filterPriority').addEventListener('change', render);
+document.getElementById('clearSearch').addEventListener('click', () => {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('filterPriority').value = '';
+  render();
+});
+
+// ── Save to file ───────────────────────────────────────────
+async function canWriteToHandle(handle) {
+  if (!handle) return false;
+  if (!handle.queryPermission || !handle.requestPermission) return true;
+  const opts = { mode: 'readwrite' };
+  if ((await handle.queryPermission(opts)) === 'granted') return true;
+  return (await handle.requestPermission(opts)) === 'granted';
+}
+
+async function saveUsingFileHandle(content) {
+  const hasPicker = typeof window.showSaveFilePicker === 'function';
+  if (!hasPicker) return 'unsupported';
+
+  try {
+    if (saveFileHandle && (await canWriteToHandle(saveFileHandle))) {
+      const writable = await saveFileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return 'saved';
+    }
+
+    if (!saveFileHandle) {
+      saveFileHandle = await window.showSaveFilePicker({
+        suggestedName: DEFAULT_TASKS_FILE,
+        types: [{
+          description: 'Kanban board data',
+          accept: { 'application/json': ['.json'] }
+        }]
+      });
+    }
+
+    if (!(await canWriteToHandle(saveFileHandle))) return 'error';
+    const writable = await saveFileHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    return 'saved';
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      showToast('Save canceled');
+      return 'canceled';
+    }
+    return 'error';
+  }
+}
+
+function saveUsingDownload(content) {
+  const blob = new Blob([content], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = DEFAULT_TASKS_FILE;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const content = JSON.stringify({ version: 1, tasks }, null, 2);
+  const saveState = await saveUsingFileHandle(content);
+  if (saveState === 'canceled') return;
+
+  if (saveState === 'unsupported' || saveState === 'error') {
+    saveUsingDownload(content);
+  }
+
+  savedSnapshot = JSON.stringify(tasks);
+  markSaved();
+  showToast(saveState === 'saved' ? '✅ Overwrote kanban-tasks.json' : '✅ Downloaded kanban-tasks.json');
+});
+
+// ── Load from file (with guard) ────────────────────────────
+document.getElementById('loadBtn').addEventListener('click', () => {
+  if (isDirty()) {
+    confirm('You have unsaved changes. Loading a file will replace your current board. Proceed?', () => triggerLoad());
+  } else { triggerLoad(); }
+});
+
+function loadFromText(text) {
+  const data = JSON.parse(text);
+  tasks = data.tasks || [];
+  savedSnapshot = JSON.stringify(tasks);
+  markSaved();
+  render();
+  showToast('📂 Loaded ' + tasks.length + ' tasks');
+}
+
+async function triggerLoad() {
+  if (typeof window.showOpenFilePicker === 'function') {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{
+          description: 'Kanban board data',
+          accept: { 'application/json': ['.json'] }
+        }],
+        multiple: false
+      });
+      if (!handle) return;
+      const file = await handle.getFile();
+      await loadFromText(await file.text());
+      saveFileHandle = handle;
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      // Fall through to input[type=file] fallback on unsupported browser issues.
+    }
+  }
+  document.getElementById('fileInput').click();
+}
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      loadFromText(ev.target.result);
+      saveFileHandle = null;
+    } catch { showToast('❌ Invalid file'); }
+  };
+  r.readAsText(file); e.target.value = '';
+});
+
+// ── Export summary ─────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const labels = { todo:'TO-DO', inprogress:'IN PROGRESS', done:'DONE', deferred:'DEFERRED' };
+  const lines = ['KANBAN BOARD SUMMARY','='.repeat(40),`Exported: ${new Date().toLocaleString()}`,''];
+  COLS.forEach(col => {
+    const ct = tasks.filter(t => t.col === col);
+    lines.push(`\n── ${labels[col]} (${ct.length}) ──`);
+    if (!ct.length) { lines.push('  (empty)'); return; }
+    ct.forEach((t,i) => {
+      lines.push(`  ${i+1}. [${t.priority.toUpperCase()}] ${t.title}${t.due?' (due: '+t.due+')':''}`);
+      if (t.desc) lines.push(`     ${t.desc}`);
+    });
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kanban-summary.txt'; a.click();
+  showToast('📄 Summary exported');
+});
+
+// ── Toast ──────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+// ── Startup prompt ─────────────────────────────────────────
+window.addEventListener('load', () => {
+  // Check for auto-save backup first
+  let backupInfo = '';
+  try {
+    const raw = localStorage.getItem(AUTO_SAVE_KEY);
+    if (raw) {
+      const bk = JSON.parse(raw);
+      const ago = Math.round((Date.now() - bk.ts) / 60000);
+      backupInfo = `<p style="color:#ffcc80;font-size:0.75rem;margin-top:8px;">💾 Browser backup found (${ago} min ago, ${bk.tasks.length} tasks)</p>`;
+    }
+  } catch(e) {}
+
+  const backdrop = document.createElement('div');
+  backdrop.style.cssText = 'position:fixed;inset:0;background:#000b;z-index:200;display:flex;align-items:center;justify-content:center;';
+  backdrop.innerHTML = `
+    <div style="background:#16213e;border-radius:14px;padding:28px;width:360px;max-width:95vw;text-align:center;">
+      <div style="font-size:2rem;margin-bottom:10px;">📂</div>
+      <h2 style="color:#e0e0ff;font-size:1rem;margin-bottom:8px;">Restore Previous Session?</h2>
+      <p style="color:#aaa;font-size:0.8rem;margin-bottom:6px;">Pick your <code>kanban-tasks.json</code> to restore, load from browser backup, or start fresh.</p>
+      ${backupInfo}
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px;">
+        <button id="startFresh" style="padding:9px 16px;border:none;border-radius:8px;background:#ffffff22;color:#eee;cursor:pointer;font-weight:600;font-size:0.82rem;">Start Fresh</button>
+        ${backupInfo ? `<button id="loadBackup" style="padding:9px 16px;border:none;border-radius:8px;background:#e65100;color:#fff;cursor:pointer;font-weight:600;font-size:0.82rem;">💾 Load Backup</button>` : ''}
+        <button id="pickFile" style="padding:9px 16px;border:none;border-radius:8px;background:#2196f3;color:#fff;cursor:pointer;font-weight:600;font-size:0.82rem;">📂 Pick File</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  document.getElementById('startFresh').addEventListener('click', () => document.body.removeChild(backdrop));
+
+  if (backupInfo) {
+    document.getElementById('loadBackup').addEventListener('click', () => {
+      try {
+        const bk = JSON.parse(localStorage.getItem(AUTO_SAVE_KEY));
+        tasks = bk.tasks || [];
+        render(); showToast('💾 Restored ' + tasks.length + ' tasks from backup');
+      } catch { showToast('❌ Backup read failed'); }
+      document.body.removeChild(backdrop);
+    });
+  }
+
+  document.getElementById('pickFile').addEventListener('click', () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
+    inp.addEventListener('change', e => {
+      const file = e.target.files[0]; if (!file) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          tasks = data.tasks || [];
+          savedSnapshot = JSON.stringify(tasks); markSaved();
+          render(); showToast('📂 Loaded ' + tasks.length + ' tasks');
+        } catch { showToast('❌ Invalid file'); }
+        document.body.removeChild(backdrop);
+      };
+      r.readAsText(file);
+    });
+    inp.click();
+  });
+});
+
+render();
+</script>
+</body>
+</html>

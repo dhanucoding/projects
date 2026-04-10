@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "mn3slx3tfcpuk1zsxlh",
+      "col": "inprogress",
+      "title": "Discussion ON Sport Solution",
+      "desc": "",
+      "priority": "medium",
+      "due": "2026-03-25"
+    },
+    {
+      "id": "mn3sllk0u4d31m462bg",
+      "col": "todo",
+      "title": "Cache Warmer changes wrt Nginx patching",
+      "desc": "",
+      "priority": "high",
+      "due": "2026-03-24"
+    },
+    {
+      "id": "mn3snfflcqlybcjis5",
+      "col": "todo",
+      "title": "Add a story for Forecasted Stock Date",
+      "desc": "",
+      "priority": "medium",
+      "due": "2026-03-24"
+    },
+    {
+      "id": "mn3ss6tol7lqam2mzlc",
+      "col": "todo",
+      "title": "CDP Migration - Increase URL length",
+      "desc": "",
+      "priority": "low",
+      "due": "2026-03-25"
+    },
+    {
+      "id": "mn3sygapad1ax34qq1l",
+      "col": "inprogress",
+      "title": "CDP Migration - Production Blocker",
+      "desc": "",
+      "priority": "medium",
+      "due": "2026-03-26"
+    },
+    {
+      "id": "mn3t0vmy01hgnjyvoxr1",
+      "col": "todo",
+      "title": "CDP - Send emails for Category & Lookup",
+      "desc": "",
+      "priority": "medium",
+      "due": "2026-03-25"
+    },
+    {
+      "id": "mn3t1ou0divgaap4l2p",
+      "col": "todo",
+      "title": "placeholder stories for category facet",
+      "desc": "",
+      "priority": "medium",
+      "due": "2026-03-25"
+    }
+  ]
+}
