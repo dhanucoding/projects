@@ -3,13 +3,42 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kanban To-Do (IndexedDB)</title>
+<title>Kanban Board</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='%2322c55e'/><polyline points='8,16 13,22 24,10' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', sans-serif; background: #f4f8ff; color: #2a3348; min-height: 100vh; padding: 20px; }
   h1 { text-align: center; margin-bottom: 4px; font-size: 1.6rem; color: #3f4f8c; letter-spacing: 1px; }
-  .subtitle { text-align: center; font-size: 0.78rem; color: #d26b6b; margin-bottom: 14px; }
+  .subtitle { text-align: center; font-size: 0.78rem; color: #5a9e6f; margin-bottom: 14px; }
+
+  /* Auth screen */
+  #authScreen {
+    position: fixed; inset: 0; background: #f4f8ff;
+    display: flex; align-items: center; justify-content: center; z-index: 200;
+  }
+  .signin-card {
+    background: #fff; border: 1px solid #d7e4fb; border-radius: 16px;
+    padding: 40px 36px; text-align: center; width: 360px; max-width: 90vw;
+    box-shadow: 0 4px 28px #2f436216;
+  }
+  .signin-card .icon { font-size: 2.8rem; margin-bottom: 12px; }
+  .signin-card h2 { font-size: 1.4rem; color: #3f4f8c; margin-bottom: 8px; }
+  .signin-card p { font-size: 0.85rem; color: #6f7b95; line-height: 1.5; margin-bottom: 28px; }
+  #signInBtn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 11px 20px;
+    background: #fff; border: 1.5px solid #d8e2f2; border-radius: 9px;
+    cursor: pointer; font-size: 0.9rem; font-weight: 600; color: #2a3348;
+    transition: background .15s, box-shadow .15s;
+  }
+  #signInBtn:hover { background: #f5f8ff; box-shadow: 0 2px 10px #2f436214; }
+
+  /* User info */
+  .user-info { display: flex; align-items: center; gap: 8px; margin-left: auto; padding-left: 14px; border-left: 1px solid #e2e8f4; }
+  #userAvatar { width: 26px; height: 26px; border-radius: 50%; border: 1px solid #d8e2f2; }
+  #userName { font-size: 0.78rem; color: #5d6a85; font-weight: 600; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #signOutBtn { padding: 4px 11px; border: 1px solid #d8e2f2; background: #f4f8ff; color: #5d6a85; border-radius: 7px; cursor: pointer; font-size: 0.76rem; font-weight: 600; transition: background .15s; }
+  #signOutBtn:hover { background: #e8effa; }
 
   /* Toolbar */
   .toolbar { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
@@ -20,32 +49,14 @@
   #fileMenuBtn { background: #5c6bc0; color: #fff; }
   .file-menu { position: relative; }
   .file-menu-panel {
-    display: none;
-    position: absolute;
-    top: 100%;
-    right: 0;
-    min-width: 160px;
-    background: #ffffff;
-    border: 1px solid #d8e2f2;
-    border-radius: 10px;
-    box-shadow: 0 8px 20px #2f436214;
-    padding: 8px;
-    z-index: 30;
-    flex-direction: column;
-    gap: 8px;
+    display: none; position: absolute; top: 100%; right: 0;
+    min-width: 160px; background: #ffffff; border: 1px solid #d8e2f2;
+    border-radius: 10px; box-shadow: 0 8px 20px #2f436214;
+    padding: 8px; z-index: 30; flex-direction: column; gap: 8px;
   }
   .file-menu.open .file-menu-panel,
   .file-menu:focus-within .file-menu-panel { display: flex; }
-  .file-menu-panel button {
-    width: 100%;
-    text-align: left;
-    padding: 8px 10px;
-    background: #eef3ff;
-    color: #2a3348;
-    border: 1px solid #d8e2f2;
-    border-radius: 8px;
-    font-weight: 600;
-  }
+  .file-menu-panel button { width: 100%; text-align: left; padding: 8px 10px; background: #eef3ff; color: #2a3348; border: 1px solid #d8e2f2; border-radius: 8px; font-weight: 600; }
   .file-menu-panel button:hover { background: #e3ecff; }
   #clearBoardBtn { background: #e53935; color: #fff; }
   #exportBtn { background: #ff9800; color: #fff; }
@@ -135,12 +146,34 @@
 </style>
 </head>
 <body>
+
+<!-- Sign-in screen -->
+<div id="authScreen">
+  <div class="signin-card">
+    <div class="icon">📋</div>
+    <h2>Kanban Board</h2>
+    <p>Sign in to sync your tasks across all your devices</p>
+    <button id="signInBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.29-8.16 2.29-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continue with Google
+    </button>
+  </div>
+</div>
+
+<!-- Main app (hidden until signed in) -->
+<div id="mainContent" style="display:none">
+
 <h1>📋 Kanban Board</h1>
-<p class="subtitle">All data stays on your machine — no server involved</p>
+<p class="subtitle">☁ Synced to the cloud — access from anywhere</p>
 
 <div class="toolbar">
-  <button id="saveBtn">💾 Save Local</button>
-  <button id="loadBtn">🔄 Reload Local</button>
+  <button id="saveBtn">☁ Save</button>
+  <button id="loadBtn">🔄 Reload</button>
   <button id="clearBoardBtn">🧹 Clear Board</button>
   <button id="exportBtn">📄 Export Summary</button>
   <span id="saveStatus" class="saved">✔ Saved</span>
@@ -152,8 +185,13 @@
     </div>
   </div>
   <input type="file" id="fileInput" accept=".json" style="display:none">
+  <div class="user-info">
+    <img id="userAvatar" src="" alt="avatar">
+    <span id="userName"></span>
+    <button id="signOutBtn">Sign Out</button>
+  </div>
 </div>
-<div id="autoSaveInfo">🔄 Auto-save to IndexedDB every 60 s</div>
+<div id="autoSaveInfo">☁ Auto-saving to cloud</div>
 
 <div class="search-bar">
   <input type="text" id="searchInput" placeholder="🔍 Search tasks…">
@@ -223,97 +261,78 @@
   </div>
 </div>
 
+</div><!-- end #mainContent -->
+
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import { initializeApp }                                          from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getFirestore, doc, getDoc, setDoc }                     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getAuth, signInWithPopup, GoogleAuthProvider,
+         onAuthStateChanged, signOut as fbSignOut }              from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+// ── Firebase init ──────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBVnqtrjmFHDB7BZANKv67gw2EjZi4xyGk",
+  authDomain: "kanban-board-c448e.firebaseapp.com",
+  projectId: "kanban-board-c448e",
+  storageBucket: "kanban-board-c448e.firebasestorage.app",
+  messagingSenderId: "964864384230",
+  appId: "1:964864384230:web:9c9c2d5bce89228bea6f27"
+};
+const app      = initializeApp(firebaseConfig);
+const db       = getFirestore(app);
+const auth     = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+// ── State ──────────────────────────────────────────────────
 let tasks = [];
 let savedSnapshot = JSON.stringify([]);
 let dragId = null, dragOverId = null;
 let editId = null, modalCol = null;
 let confirmCallback = null;
+let currentUser = null;
+let saveTimer = null;
+
 const COLS = ['todo','inprogress','done','deferred'];
-const DB_NAME = 'kanban_tracker_db';
-const DB_VERSION = 1;
-const STORE_NAME = 'state';
-const STATE_KEY = 'board_state';
 const DEFAULT_TASKS_FILE = 'kanban-tasks.json';
 const PACIFIC_TZ = 'America/Los_Angeles';
 
-function formatPacificDateTime(value) {
-  if (!value) return '-';
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value + ' 12:00 AM PT';
-  }
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: PACIFIC_TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-    timeZoneName: 'short'
-  }).format(d);
+// ── Firestore helpers ──────────────────────────────────────
+function boardRef(uid) {
+  return doc(db, 'users', uid, 'board', 'state');
+}
+async function cloudSave() {
+  if (!currentUser) return;
+  await setDoc(boardRef(currentUser.uid), { tasks, ts: Date.now() });
+}
+async function cloudLoad() {
+  if (!currentUser) return null;
+  const snap = await getDoc(boardRef(currentUser.uid));
+  return snap.exists() ? snap.data() : null;
 }
 
-function formatPacificDateOnly(value) {
-  if (!value) return '-';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) {
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-    return String(value);
-  }
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: PACIFIC_TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(d);
-  const y = parts.find(p => p.type === 'year')?.value;
-  const m = parts.find(p => p.type === 'month')?.value;
-  const day = parts.find(p => p.type === 'day')?.value;
-  return y && m && day ? `${y}-${m}-${day}` : '-';
+// ── Auto-save: debounced 1.5 s after any change ────────────
+function autoSave() {
+  markUnsaved();
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await cloudSave();
+      savedSnapshot = JSON.stringify(tasks);
+      markSaved();
+      document.getElementById('autoSaveInfo').textContent =
+        '☁ Auto-saved: ' + formatPacificDateTime(Date.now());
+    } catch {
+      showToast('⚠ Auto-save failed');
+    }
+  }, 1500);
 }
 
-function openDb() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function idbSaveState() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put({ ts: Date.now(), tasks }, STATE_KEY);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error); };
-  });
-}
-
-async function idbLoadState() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const req = tx.objectStore(STORE_NAME).get(STATE_KEY);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-    tx.oncomplete = () => db.close();
-  });
-}
-
-// ── Unsaved state ──────────────────────────────────────────
+// ── Save status ────────────────────────────────────────────
 function markUnsaved() {
   const el = document.getElementById('saveStatus');
-  el.textContent = '● Unsaved'; el.className = 'unsaved';
+  el.textContent = '● Saving…'; el.className = 'unsaved';
 }
 function markSaved() {
   const el = document.getElementById('saveStatus');
@@ -322,22 +341,106 @@ function markSaved() {
 function isDirty() { return JSON.stringify(tasks) !== savedSnapshot; }
 
 window.addEventListener('beforeunload', e => {
-  if (isDirty()) { e.preventDefault(); e.returnValue = 'You have unsaved changes — save your file before leaving!'; }
+  if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
 });
 
-// ── Auto-save to IndexedDB ─────────────────────────────────
-function autoSave() {
-  idbSaveState()
-    .then(() => {
-      document.getElementById('autoSaveInfo').textContent =
-        '🔄 Auto-save: ' + formatPacificDateTime(Date.now());
-    })
-    .catch(() => showToast('⚠ Auto-save failed'));
-}
-setInterval(autoSave, 60000);
+// ── Auth ───────────────────────────────────────────────────
+document.getElementById('signInBtn').addEventListener('click', async () => {
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (err) {
+    showToast('Sign-in failed: ' + err.message);
+  }
+});
 
-// ── Confirm dialog helper ──────────────────────────────────
-function confirm(msg, cb) {
+document.getElementById('signOutBtn').addEventListener('click', () => fbSignOut(auth));
+
+onAuthStateChanged(auth, async user => {
+  currentUser = user;
+  if (user) {
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('mainContent').style.display = '';
+    document.getElementById('userAvatar').src = user.photoURL || '';
+    document.getElementById('userName').textContent = user.displayName || user.email;
+    try {
+      const state = await cloudLoad();
+      tasks = (state && Array.isArray(state.tasks)) ? state.tasks : [];
+      savedSnapshot = JSON.stringify(tasks);
+      markSaved();
+      render();
+      showToast('☁ Board loaded' + (state?.ts ? ' — ' + formatPacificDateTime(state.ts) : ''));
+    } catch {
+      showToast('⚠ Could not load from cloud');
+      render();
+    }
+  } else {
+    document.getElementById('mainContent').style.display = 'none';
+    document.getElementById('authScreen').style.display = 'flex';
+    tasks = [];
+    savedSnapshot = JSON.stringify([]);
+  }
+});
+
+// ── Manual save / reload ───────────────────────────────────
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  try {
+    await cloudSave();
+    savedSnapshot = JSON.stringify(tasks);
+    markSaved();
+    showToast('☁ Saved to cloud');
+  } catch {
+    showToast('❌ Cloud save failed');
+  }
+});
+
+document.getElementById('loadBtn').addEventListener('click', () => {
+  if (isDirty()) {
+    showConfirm('Reload from cloud? Unsaved local changes will be lost.', triggerLoad);
+  } else { triggerLoad(); }
+});
+
+async function triggerLoad() {
+  try {
+    const state = await cloudLoad();
+    tasks = (state && Array.isArray(state.tasks)) ? state.tasks : [];
+    savedSnapshot = JSON.stringify(tasks);
+    markSaved();
+    render();
+    showToast('☁ Reloaded ' + tasks.length + ' tasks from cloud');
+  } catch {
+    showToast('❌ Cloud load failed');
+  }
+}
+
+// ── Date helpers ───────────────────────────────────────────
+function formatPacificDateTime(value) {
+  if (!value) return '-';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value + ' 12:00 AM PT';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: true, timeZoneName: 'short'
+  }).format(d);
+}
+function formatPacificDateOnly(value) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    return String(value);
+  }
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PACIFIC_TZ, year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(d);
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return y && m && day ? `${y}-${m}-${day}` : '-';
+}
+
+// ── Confirm dialog ─────────────────────────────────────────
+function showConfirm(msg, cb) {
   document.getElementById('confirmMsg').textContent = msg;
   document.getElementById('confirmBackdrop').classList.add('open');
   confirmCallback = cb;
@@ -353,20 +456,17 @@ document.getElementById('confirmCancel').addEventListener('click', () => {
 
 // ── Render ─────────────────────────────────────────────────
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
 function highlight(text, q) {
   if (!q) return esc(text);
   const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
   return esc(text).replace(re, '<mark>$1</mark>');
 }
-
 function getFilters() {
   return {
     q: document.getElementById('searchInput').value.trim().toLowerCase(),
     p: document.getElementById('filterPriority').value
   };
 }
-
 function render() {
   const { q, p } = getFilters();
   COLS.forEach(col => {
@@ -384,9 +484,7 @@ function render() {
       const overdue = t.due && t.due < today && col !== 'done';
       const dueLabel = t.due ? formatPacificDateOnly(t.due) : '-';
       const el = document.createElement('div');
-      el.className = 'card';
-      el.draggable = true;
-      el.dataset.id = t.id;
+      el.className = 'card'; el.draggable = true; el.dataset.id = t.id;
       el.innerHTML = `
         <span class="drag-handle" title="Drag">⠿</span>
         <button class="del-btn" data-id="${t.id}" title="Delete">×</button>
@@ -398,19 +496,19 @@ function render() {
           <span class="due${overdue?' overdue':''}">${t.due ? `${overdue?'⚠ ':''}${dueLabel}` : '-'}</span>
         </div>`;
       el.addEventListener('click', e => { if (!e.target.classList.contains('del-btn')) openModal(col, t.id); });
-      // drag events
       el.addEventListener('dragstart', onDragStart);
       el.addEventListener('dragend', onDragEnd);
       el.addEventListener('dragover', onCardDragOver);
       el.addEventListener('drop', onCardDrop);
       container.appendChild(el);
     });
-    document.getElementById('cnt-' + col).textContent = visible + (visible < colTasks.length ? `/${colTasks.length}` : '');
+    document.getElementById('cnt-' + col).textContent =
+      visible + (visible < colTasks.length ? `/${colTasks.length}` : '');
   });
 }
 
-// ── Drag & Drop (inter + intra column) ────────────────────
-function onDragStart(e) {
+// ── Drag & Drop ────────────────────────────────────────────
+function onDragStart() {
   dragId = this.dataset.id;
   setTimeout(() => this.classList.add('dragging'), 0);
 }
@@ -433,24 +531,23 @@ function onCardDrop(e) {
   tasks[fromIdx].col = tasks[toIdx].col;
   const [moved] = tasks.splice(fromIdx, 1);
   tasks.splice(toIdx, 0, moved);
-  markUnsaved(); autoSave(); render();
+  autoSave(); render();
 }
-
 document.querySelectorAll('.col').forEach(col => {
   col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over-col'); });
   col.addEventListener('dragleave', () => col.classList.remove('drag-over-col'));
   col.addEventListener('drop', e => {
-    e.preventDefault();
-    col.classList.remove('drag-over-col');
+    e.preventDefault(); col.classList.remove('drag-over-col');
     if (dragId && !e.target.closest('.card')) {
       const t = tasks.find(t => t.id === dragId);
-      if (t) { t.col = col.dataset.col; markUnsaved(); autoSave(); render(); }
+      if (t) { t.col = col.dataset.col; autoSave(); render(); }
     }
   });
 });
 
 // ── Add / Edit Modal ───────────────────────────────────────
-document.querySelectorAll('.add-btn').forEach(btn => btn.addEventListener('click', () => openModal(btn.dataset.col)));
+document.querySelectorAll('.add-btn').forEach(btn =>
+  btn.addEventListener('click', () => openModal(btn.dataset.col)));
 
 function openModal(col, id = null) {
   editId = id; modalCol = col;
@@ -464,9 +561,13 @@ function openModal(col, id = null) {
   document.getElementById('mTitle').focus();
 }
 document.getElementById('modalCancel').addEventListener('click', closeModal);
-document.getElementById('modalBackdrop').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
-function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); editId = null; }
-
+document.getElementById('modalBackdrop').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('open');
+  editId = null;
+}
 document.getElementById('modalSave').addEventListener('click', () => {
   const title = document.getElementById('mTitle').value.trim();
   if (!title) { document.getElementById('mTitle').style.borderColor='#ef5350'; return; }
@@ -475,21 +576,21 @@ document.getElementById('modalSave').addEventListener('click', () => {
   const existing = editId ? tasks.find(t => t.id === editId) : null;
   const data = {
     title,
-    desc: document.getElementById('mDesc').value.trim(),
+    desc:     document.getElementById('mDesc').value.trim(),
     priority: document.getElementById('mPriority').value,
-    created: existing ? (existing.created || nowIso) : nowIso,
-    due: document.getElementById('mDue').value
+    created:  existing ? (existing.created || nowIso) : nowIso,
+    due:      document.getElementById('mDue').value
   };
   if (editId) { Object.assign(tasks.find(t => t.id === editId), data); }
   else { tasks.push({ id: uid(), col: modalCol, ...data }); }
-  closeModal(); markUnsaved(); autoSave(); render();
+  closeModal(); autoSave(); render();
 });
 
 // Delete
 document.getElementById('board').addEventListener('click', e => {
   if (e.target.classList.contains('del-btn')) {
     tasks = tasks.filter(t => t.id !== e.target.dataset.id);
-    markUnsaved(); autoSave(); render();
+    autoSave(); render();
   }
 });
 
@@ -502,84 +603,57 @@ document.getElementById('clearSearch').addEventListener('click', () => {
   render();
 });
 
-// ── Save/Load local (IndexedDB) ───────────────────────────
-const fileMenuEl = document.querySelector('.file-menu');
+// ── File menu ──────────────────────────────────────────────
+const fileMenuEl  = document.querySelector('.file-menu');
 const fileMenuBtn = document.getElementById('fileMenuBtn');
 let fileMenuCloseTimer = null;
-
 function openFileMenu() {
   if (fileMenuCloseTimer) clearTimeout(fileMenuCloseTimer);
   fileMenuEl.classList.add('open');
 }
-
 function scheduleCloseFileMenu() {
   if (fileMenuCloseTimer) clearTimeout(fileMenuCloseTimer);
   fileMenuCloseTimer = setTimeout(() => fileMenuEl.classList.remove('open'), 140);
 }
-
 fileMenuEl.addEventListener('mouseenter', openFileMenu);
 fileMenuEl.addEventListener('mouseleave', scheduleCloseFileMenu);
 fileMenuBtn.addEventListener('click', e => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (fileMenuEl.classList.contains('open')) fileMenuEl.classList.remove('open');
-  else openFileMenu();
+  e.preventDefault(); e.stopPropagation();
+  fileMenuEl.classList.contains('open') ? fileMenuEl.classList.remove('open') : openFileMenu();
 });
 document.addEventListener('click', e => {
   if (!fileMenuEl.contains(e.target)) fileMenuEl.classList.remove('open');
 });
 
-document.getElementById('saveBtn').addEventListener('click', async () => {
-  try {
-    await idbSaveState();
-    savedSnapshot = JSON.stringify(tasks);
-    markSaved();
-    showToast('✅ Saved locally (IndexedDB)');
-  } catch {
-    showToast('❌ Local save failed');
-  }
-});
-
+// ── File export / import ───────────────────────────────────
 document.getElementById('saveFileBtn').addEventListener('click', () => {
   fileMenuEl.classList.remove('open');
   const blob = new Blob([JSON.stringify({ version: 1, tasks }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = DEFAULT_TASKS_FILE;
-  a.click();
+  a.href = URL.createObjectURL(blob); a.download = DEFAULT_TASKS_FILE; a.click();
   URL.revokeObjectURL(a.href);
   showToast('📁 Saved to file: ' + DEFAULT_TASKS_FILE);
 });
 
 async function importFromText(text) {
   const data = JSON.parse(text);
-  const imported = Array.isArray(data.tasks) ? data.tasks : [];
-  tasks = imported;
+  tasks = Array.isArray(data.tasks) ? data.tasks : [];
   render();
-  markUnsaved();
   try {
-    await idbSaveState();
+    await cloudSave();
     savedSnapshot = JSON.stringify(tasks);
     markSaved();
-    showToast('📂 Loaded ' + tasks.length + ' tasks from file');
+    showToast('📂 Loaded ' + tasks.length + ' tasks — synced to cloud');
   } catch {
-    showToast('⚠ Loaded file, but local sync failed');
+    markUnsaved();
+    showToast('📂 Loaded from file (cloud sync failed)');
   }
-}
-
-function triggerLoadFromFile() {
-  const input = document.getElementById('fileInput');
-  input.value = '';
-  input.click();
 }
 
 document.getElementById('loadFileBtn').addEventListener('click', () => {
   fileMenuEl.classList.remove('open');
-  if (isDirty()) {
-    confirm('You have unsaved changes. Loading a file will replace your current board. Proceed?', () => triggerLoadFromFile());
-    return;
-  }
-  triggerLoadFromFile();
+  const go = () => { document.getElementById('fileInput').value = ''; document.getElementById('fileInput').click(); };
+  isDirty() ? showConfirm('Loading a file will replace your current board. Proceed?', go) : go();
 });
 
 document.getElementById('fileInput').addEventListener('change', e => {
@@ -587,96 +661,56 @@ document.getElementById('fileInput').addEventListener('change', e => {
   if (!file) return;
   const r = new FileReader();
   r.onload = async ev => {
-    try {
-      await importFromText(ev.target.result);
-    } catch {
-      showToast('❌ Invalid file');
-    }
+    try { await importFromText(ev.target.result); }
+    catch { showToast('❌ Invalid file'); }
   };
   r.readAsText(file);
 });
 
+// ── Clear board ────────────────────────────────────────────
 document.getElementById('clearBoardBtn').addEventListener('click', () => {
   if (!tasks.length) { showToast('Board is already empty'); return; }
-  confirm('⚠ Clear all tasks from the board? This cannot be undone.', async () => {
+  showConfirm('⚠ Clear all tasks? This cannot be undone.', async () => {
     tasks = [];
     render();
-    markUnsaved();
     try {
-      await idbSaveState();
+      await cloudSave();
       savedSnapshot = JSON.stringify(tasks);
       markSaved();
-      showToast('🧹 Board cleared');
+      showToast('🧹 Board cleared and synced');
     } catch {
-      showToast('❌ Clear succeeded, but local save failed');
+      markUnsaved();
+      showToast('❌ Cleared locally but cloud sync failed');
     }
   });
 });
 
-// ── Load from local (with guard) ───────────────────────────
-document.getElementById('loadBtn').addEventListener('click', () => {
-  if (isDirty()) {
-    confirm('You have unsaved changes. Reloading local data will replace your current board. Proceed?', () => triggerLoad());
-  } else { triggerLoad(); }
-});
-
-async function triggerLoad() {
-  try {
-    const state = await idbLoadState();
-    tasks = state && Array.isArray(state.tasks) ? state.tasks : [];
-    savedSnapshot = JSON.stringify(tasks);
-    markSaved();
-    render();
-    showToast('📂 Reloaded ' + tasks.length + ' tasks from local storage');
-  } catch {
-    showToast('❌ Local load failed');
-  }
-}
-
 // ── Export summary ─────────────────────────────────────────
 document.getElementById('exportBtn').addEventListener('click', () => {
   const labels = { todo:'TO-DO', inprogress:'IN PROGRESS', done:'DONE', deferred:'DEFERRED' };
-  const lines = ['KANBAN BOARD SUMMARY','='.repeat(40),`Exported: ${formatPacificDateTime(Date.now())}`,''];
+  const lines = ['KANBAN BOARD SUMMARY', '='.repeat(40), `Exported: ${formatPacificDateTime(Date.now())}`, ''];
   COLS.forEach(col => {
     const ct = tasks.filter(t => t.col === col);
     lines.push(`\n── ${labels[col]} (${ct.length}) ──`);
     if (!ct.length) { lines.push('  (empty)'); return; }
-    ct.forEach((t,i) => {
+    ct.forEach((t, i) => {
       lines.push(`  ${i+1}. [${t.priority.toUpperCase()}] ${t.title}${t.due?' (due: '+t.due+')':''}`);
       if (t.desc) lines.push(`     ${t.desc}`);
     });
   });
   const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kanban-summary.txt'; a.click();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'kanban-summary.txt'; a.click();
   showToast('📄 Summary exported');
 });
 
-// ── Toast ──────────────────────────────────────────────────
+// ── Utilities ──────────────────────────────────────────────
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
-
-// ── Startup restore ────────────────────────────────────────
-window.addEventListener('load', async () => {
-  try {
-    const state = await idbLoadState();
-    if (state && Array.isArray(state.tasks)) {
-      tasks = state.tasks;
-      savedSnapshot = JSON.stringify(tasks);
-      markSaved();
-      render();
-      showToast('💾 Restored local board from ' + formatPacificDateTime(state.ts || Date.now()));
-      return;
-    }
-  } catch {
-    showToast('⚠ Could not read local data');
-  }
-  render();
-});
-
 </script>
 </body>
 </html>
