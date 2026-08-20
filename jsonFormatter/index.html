@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JSON Formatter</title>
+<style>
+  /* ---------- Design tokens ---------- */
+  :root {
+    --bg: #0d1117;
+    --bg-panel: #10151c;
+    --bg-elevated: #161b22;
+    --border: #21262d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --text-faint: #565f6b;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --danger: #f85149;
+    --danger-bg: rgba(248, 81, 73, 0.1);
+    --warn: #d29922;
+
+    --key-color: #79c0ff;
+    --string-color: #a5d6a7;
+    --number-color: #e0a458;
+    --boolean-color: #d492e0;
+    --null-color: #ff7b72;
+    --punct-color: #8b949e;
+
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- Layout shell ---------- */
+  .app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+  }
+
+  header.topbar h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  header.topbar .subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    color: var(--text);
+    padding: 7px 14px;
+    font-size: 13px;
+    font-family: var(--font-ui);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease, color .12s ease, transform .05s ease;
+  }
+  .btn:hover { background: #1c2129; border-color: #30363d; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #04121f; font-weight: 600; }
+  .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn.danger:hover { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+  .btn.copied { background: #2ea043; border-color: #2ea043; color: #fff; }
+
+  /* ---------- Error banner ---------- */
+  .error-banner {
+    display: none;
+    background: var(--danger-bg);
+    border-left: 3px solid var(--danger);
+    padding: 10px 18px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .error-banner.visible { display: block; }
+  .error-title { color: var(--danger); font-weight: 600; }
+  .error-msg { color: var(--text); margin-top: 2px; }
+  .error-location { color: var(--text-dim); margin-top: 4px; font-family: var(--font-mono); font-size: 12px; }
+  .error-snippet {
+    margin: 6px 0 0;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: #ff9d92;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* ---------- Panels ---------- */
+  main.panels {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    min-height: 0;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .stats {
+    font-family: var(--font-mono);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  textarea#input {
+    flex: 1;
+    resize: none;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.6;
+    padding: 14px;
+    min-height: 0;
+  }
+
+  .output-body {
+    flex: 1;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.65;
+    padding: 8px 0;
+    min-height: 0;
+  }
+
+  .output-body.empty::before {
+    content: "Formatted JSON will appear here.";
+    display: block;
+    padding: 14px;
+    color: var(--text-faint);
+    font-family: var(--font-ui);
+    font-style: italic;
+    font-size: 13px;
+  }
+
+  /* ---------- JSON tree / flat lines ---------- */
+  .line {
+    display: flex;
+    padding: 0 14px 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .line:hover { background: rgba(255,255,255,0.035); }
+
+  .lineno {
+    display: inline-block;
+    min-width: 38px;
+    margin-right: 12px;
+    text-align: right;
+    color: var(--text-faint);
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .toggle {
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+    margin-right: 3px;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+    transition: transform .15s ease;
+    flex-shrink: 0;
+  }
+
+  .node.collapsed > .header > .toggle { transform: rotate(-90deg); }
+  .node.collapsed > .children,
+  .node.collapsed > .footer { display: none; }
+
+  .collapsed-summary {
+    display: none;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-left: 6px;
+    cursor: pointer;
+  }
+  .node.collapsed > .header .collapsed-summary { display: inline; }
+  .collapsed-summary .count { color: var(--text-faint); font-style: normal; margin-left: 8px; font-size: 11px; }
+
+  .key { color: var(--key-color); }
+  .colon { color: var(--punct-color); }
+  .val.string { color: var(--string-color); }
+  .val.number { color: var(--number-color); }
+  .val.boolean { color: var(--boolean-color); font-weight: 600; }
+  .val.null { color: var(--null-color); font-style: italic; }
+  .bracket, .punct { color: var(--punct-color); }
+
+  .large-note {
+    padding: 8px 14px;
+    color: var(--warn);
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  footer.hint {
+    padding: 6px 18px;
+    font-size: 11px;
+    color: var(--text-faint);
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+    flex-shrink: 0;
+  }
+
+  /* ---------- Scrollbars ---------- */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3f4753; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 860px) {
+    main.panels {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+    header.topbar h1 { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>{ } JSON Formatter <span class="subtitle">beautify &middot; minify &middot; validate</span></h1>
+      <div class="toolbar">
+        <button id="btnFormat" class="btn primary" title="Pretty-print (Ctrl/Cmd+Enter)">Format</button>
+        <button id="btnMinify" class="btn" title="Collapse to one line">Minify</button>
+        <button id="btnCopy" class="btn" title="Copy output to clipboard">Copy</button>
+        <button id="btnClear" class="btn danger" title="Clear input and output">Clear</button>
+      </div>
+    </header>
+
+    <div id="error" class="error-banner"></div>
+
+    <main class="panels">
+      <section class="panel input-panel">
+        <div class="panel-header"><span>Input</span></div>
+        <textarea id="input" spellcheck="false" autocomplete="off" placeholder="Paste your raw JSON here..."></textarea>
+      </section>
+      <section class="panel output-panel">
+        <div class="panel-header">
+          <span>Output</span>
+          <span id="stats" class="stats"></span>
+        </div>
+        <div id="output" class="output-body empty"></div>
+      </section>
+    </main>
+
+    <footer class="hint">Auto-formats as you type (debounced) &middot; click the ▾ arrows to collapse/expand objects and arrays &middot; parsing runs off the main thread for large files.</footer>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ==========================================================
+     Element references
+     ========================================================== */
+  var input      = document.getElementById('input');
+  var output     = document.getElementById('output');
+  var errorBox   = document.getElementById('error');
+  var statsBox   = document.getElementById('stats');
+  var btnFormat  = document.getElementById('btnFormat');
+  var btnMinify  = document.getElementById('btnMinify');
+  var btnCopy    = document.getElementById('btnCopy');
+  var btnClear   = document.getElementById('btnClear');
+
+  var DEBOUNCE_MS = 400;
+  // Above this many characters of pretty-printed output, skip the
+  // (DOM-node-heavy) collapsible tree and fall back to plain highlighted text.
+  var TREE_CHAR_LIMIT = 150000;
+  // Above this many lines even the per-line flat renderer gets expensive;
+  // fall back to a single highlighted <pre> block.
+  var FLAT_LINE_LIMIT = 20000;
+
+  var lastOutputText = '';   // exact text currently shown (for Copy)
+  var debounceTimer = null;
+  var requestToken = 0;      // guards against out-of-order async responses
+
+  /* ==========================================================
+     Web Worker for parsing/stringifying off the main thread.
+     Built from an inline string + Blob so the whole app stays
+     a single file with no build step and no extra requests.
+     ========================================================== */
+  var WORKER_SRC = [
+    'self.onmessage = function (e) {',
+    '  var id = e.data.id, action = e.data.action, text = e.data.text;',
+    '  try {',
+    '    var parsed = JSON.parse(text);',
+    '    var pretty = action === "format" ? JSON.stringify(parsed, null, 2) : null;',
+    '    var minified = action === "minify" ? JSON.stringify(parsed) : null;',
+    '    self.postMessage({ id: id, ok: true, pretty: pretty, minified: minified, parsed: parsed });',
+    '  } catch (err) {',
+    '    self.postMessage({ id: id, ok: false, error: err.message });',
+    '  }',
+    '};'
+  ].join('\n');
+
+  var worker = null;
+  var workerUnavailable = false;
+
+  function getWorker() {
+    if (workerUnavailable) return null;
+    if (!worker) {
+      try {
+        var blob = new Blob([WORKER_SRC], { type: 'application/javascript' });
+        worker = new Worker(URL.createObjectURL(blob));
+      } catch (e) {
+        workerUnavailable = true;
+        return null;
+      }
+    }
+    return worker;
+  }
+
+  var pendingId = 0;
+
+  // Returns a Promise resolving to { ok, pretty|minified, parsed, error }.
+  function parseAsync(text, action) {
+    var w = getWorker();
+    if (!w) {
+      // Synchronous fallback (older browsers / restricted contexts).
+      return new Promise(function (resolve) {
+        try {
+          var parsed = JSON.parse(text);
+          resolve({
+            ok: true,
+            pretty: action === 'format' ? JSON.stringify(parsed, null, 2) : null,
+            minified: action === 'minify' ? JSON.stringify(parsed) : null,
+            parsed: parsed
+          });
+        } catch (err) {
+          resolve({ ok: false, error: err.message });
+        }
+      });
+    }
+    return new Promise(function (resolve) {
+      var id = ++pendingId;
+      function handler(e) {
+        if (e.data.id !== id) return;
+        w.removeEventListener('message', handler);
+        resolve(e.data);
+      }
+      w.addEventListener('message', handler);
+      w.postMessage({ id: id, action: action, text: text });
+    });
+  }
+
+  /* ==========================================================
+     Small helpers
+     ========================================================== */
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+  }
+
+  function formatBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(2) + ' MB';
+  }
+
+  function getLineCol(text, pos) {
+    var upTo = text.slice(0, pos).split('\n');
+    return { line: upTo.length, col: upTo[upTo.length - 1].length + 1 };
+  }
+
+  function countKeys(value, cap) {
+    cap = cap || 500000;
+    var count = 0;
+    var capped = false;
+    (function walk(v) {
+      if (capped) return;
+      if (v && typeof v === 'object') {
+        if (Array.isArray(v)) {
+          for (var i = 0; i < v.length; i++) { walk(v[i]); if (capped) return; }
+        } else {
+          for (var k in v) {
+            if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+            count++;
+            if (count >= cap) { capped = true; return; }
+            walk(v[k]);
+            if (capped) return;
+          }
+        }
+      }
+    })(value);
+    return capped ? (cap + '+') : count;
+  }
+
+  /* ==========================================================
+     Error display (with line/column + source snippet when possible)
+     ========================================================== */
+  function clearError() {
+    errorBox.innerHTML = '';
+    errorBox.classList.remove('visible');
+  }
+
+  function showError(message, text) {
+    var line = null, col = null;
+    var m = message.match(/line (\d+) column (\d+)/i);
+    if (m) {
+      line = parseInt(m[1], 10);
+      col = parseInt(m[2], 10);
+    } else {
+      m = message.match(/position (\d+)/i);
+      if (m) {
+        var loc = getLineCol(text, parseInt(m[1], 10));
+        line = loc.line;
+        col = loc.col;
+      }
+    }
+
+    var html = '<span class="error-title">&#9888; Invalid JSON</span>' +
+                '<div class="error-msg">' + escapeHtml(message) + '</div>';
+
+    if (line != null) {
+      var srcLine = text.split('\n')[line - 1] || '';
+      html += '<div class="error-location">Line ' + line + ', Column ' + col + '</div>';
+      html += '<pre class="error-snippet">' + escapeHtml(srcLine) + '\n' +
+              new Array(Math.max(0, col - 1) + 1).join(' ') + '^</pre>';
+    }
+
+    errorBox.innerHTML = html;
+    errorBox.classList.add('visible');
+  }
+
+  /* ==========================================================
+     Syntax highlighter for flat (non-tree) text — used for
+     Minify output and for the large-file fallback view.
+     ========================================================== */
+  function syntaxHighlight(json) {
+    var pattern = /"(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(\.\d+)?([eE][+-]?\d+)?/g;
+    return json.replace(pattern, function (match) {
+      var cls = 'number';
+      if (match.charAt(0) === '"') {
+        cls = /:$/.test(match) ? 'key' : 'string';
+      } else if (match === 'true' || match === 'false') {
+        cls = 'boolean';
+      } else if (match === 'null') {
+        cls = 'null';
+      }
+      return '<span class="val ' + cls + '">' + escapeHtml(match) + '</span>';
+    });
+  }
+
+  function renderFlat(text, isLarge) {
+    output.classList.remove('empty');
+    output.innerHTML = '';
+
+    if (isLarge) {
+      var note = document.createElement('div');
+      note.className = 'large-note';
+      note.textContent = 'Large JSON detected — collapsible tree view disabled for performance. Showing highlighted text instead.';
+      output.appendChild(note);
+    }
+
+    var lines = text.split('\n');
+
+    if (lines.length > FLAT_LINE_LIMIT) {
+      // Extremely large: avoid one DOM node per line altogether.
+      var pre = document.createElement('pre');
+      pre.style.margin = '0';
+      pre.style.padding = '8px 14px';
+      pre.innerHTML = syntaxHighlight(text);
+      output.appendChild(pre);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < lines.length; i++) {
+      var row = document.createElement('div');
+      row.className = 'line';
+      row.innerHTML = '<span class="lineno">' + (i + 1) + '</span><span class="content">' +
+                        syntaxHighlight(lines[i]) + '</span>';
+      frag.appendChild(row);
+    }
+    output.appendChild(frag);
+  }
+
+  /* ==========================================================
+     Collapsible JSON tree renderer (built directly from the
+     parsed JS value, not from the pretty-printed string).
+     ========================================================== */
+  function getType(v) {
+    if (v === null) return 'null';
+    if (Array.isArray(v)) return 'array';
+    return typeof v; // 'object' | 'string' | 'number' | 'boolean'
+  }
+
+  function keySpanHtml(key) {
+    if (key === null) return '';
+    return '<span class="key">"' + escapeHtml(key) + '"</span><span class="colon">: </span>';
+  }
+
+  function valueHtml(value, type) {
+    switch (type) {
+      case 'string':  return '<span class="val string">"' + escapeHtml(value) + '"</span>';
+      case 'number':  return '<span class="val number">' + value + '</span>';
+      case 'boolean': return '<span class="val boolean">' + value + '</span>';
+      case 'null':    return '<span class="val null">null</span>';
+      default:        return escapeHtml(String(value));
+    }
+  }
+
+  function buildPrimitiveLine(value, key, isLast, depth, type) {
+    var line = document.createElement('div');
+    line.className = 'line';
+    var content = keySpanHtml(key) + valueHtml(value, type) + (isLast ? '' : '<span class="punct">,</span>');
+    line.innerHTML = '<span class="lineno"></span><span class="toggle" style="visibility:hidden">&#9662;</span>' +
+                      '<span class="content" style="padding-left:' + (depth * 16) + 'px">' + content + '</span>';
+    return line;
+  }
+
+  function buildCompound(value, key, isLast, depth, type) {
+    var node = document.createElement('div');
+    node.className = 'node';
+
+    var entries = type === 'array'
+      ? value.map(function (v, i) { return [i, v]; })
+      : Object.keys(value).map(function (k) { return [k, value[k]]; });
+
+    var openChar = type === 'array' ? '[' : '{';
+    var closeChar = type === 'array' ? ']' : '}';
+    var count = entries.length;
+
+    var header = document.createElement('div');
+    header.className = 'line header';
+    header.innerHTML = '<span class="lineno"></span>' +
+      '<span class="toggle"' + (count ? '' : ' style="visibility:hidden"') + '>&#9662;</span>' +
+      '<span class="content" style="padding-left:' + (depth * 16) + 'px">' +
+        keySpanHtml(key) + '<span class="bracket">' + openChar + '</span>' +
+      '</span>';
+    node.appendChild(header);
+
+    if (count === 0) {
+      header.querySelector('.content').innerHTML +=
+        '<span class="bracket">' + closeChar + '</span>' + (isLast ? '' : '<span class="punct">,</span>');
+      return node;
+    }
+
+    var noun = type === 'array' ? (count === 1 ? 'item' : 'items') : (count === 1 ? 'key' : 'keys');
+    var summary = document.createElement('span');
+    summary.className = 'collapsed-summary';
+    summary.innerHTML = '&hellip; <span class="bracket">' + closeChar + '</span>' +
+      (isLast ? '' : '<span class="punct">,</span>') +
+      '<span class="count">' + count + ' ' + noun + '</span>';
+    header.appendChild(summary);
+
+    var children = document.createElement('div');
+    children.className = 'children';
+    for (var i = 0; i < entries.length; i++) {
+      var k = entries[i][0], v = entries[i][1];
+      var childKey = type === 'array' ? null : k;
+      var childIsLast = i === entries.length - 1;
+      children.appendChild(buildNode(v, childKey, childIsLast, depth + 1));
+    }
+    node.appendChild(children);
+
+    var footer = document.createElement('div');
+    footer.className = 'line footer';
+    footer.innerHTML = '<span class="lineno"></span><span class="toggle" style="visibility:hidden">&#9662;</span>' +
+      '<span class="content" style="padding-left:' + (depth * 16) + 'px">' +
+        '<span class="bracket">' + closeChar + '</span>' + (isLast ? '' : '<span class="punct">,</span>') +
+      '</span>';
+    node.appendChild(footer);
+
+    return node;
+  }
+
+  function buildNode(value, key, isLast, depth) {
+    var type = getType(value);
+    if (type === 'object' || type === 'array') {
+      return buildCompound(value, key, isLast, depth, type);
+    }
+    return buildPrimitiveLine(value, key, isLast, depth, type);
+  }
+
+  // Renumbers only the currently *visible* lines, by walking the tree
+  // structure directly (header -> children -> footer) instead of
+  // querying the whole DOM. Collapsed nodes' `.children` are skipped
+  // outright (we already know they're hidden from the `.collapsed`
+  // class), so cost scales with what's on screen, not with the total
+  // size of the parsed JSON. This also avoids reading layout
+  // properties like `offsetParent`, which force a synchronous reflow
+  // and were the main cause of slow expand/collapse on large trees.
+  function renumber() {
+    var n = 1;
+
+    function numberLine(lineEl) {
+      // `.lineno` is always the first child of a `.line`.
+      lineEl.firstElementChild.textContent = n++;
+    }
+
+    function walkContainer(container) {
+      for (var child = container.firstElementChild; child; child = child.nextElementSibling) {
+        if (child.classList.contains('node')) {
+          walkNode(child);
+        } else if (child.classList.contains('line')) {
+          numberLine(child);
+        }
+      }
+    }
+
+    function walkNode(node) {
+      // First child of a `.node` is always its `.line.header`.
+      numberLine(node.firstElementChild);
+      if (node.classList.contains('collapsed')) return; // children/footer hidden — skip them
+      for (var child = node.firstElementChild.nextElementSibling; child; child = child.nextElementSibling) {
+        if (child.classList.contains('children')) {
+          walkContainer(child);
+        } else if (child.classList.contains('line')) {
+          numberLine(child); // footer
+        }
+      }
+    }
+
+    var root = output.querySelector('.json-tree');
+    if (root) walkContainer(root);
+  }
+
+  function renderTree(value) {
+    output.classList.remove('empty');
+    output.innerHTML = '';
+    var root = document.createElement('div');
+    root.className = 'json-tree';
+    root.appendChild(buildNode(value, null, true, 0));
+    output.appendChild(root);
+    renumber();
+  }
+
+  // Toggle expand/collapse via event delegation (works for all current
+  // and future nodes without attaching a listener to every one of them).
+  output.addEventListener('click', function (e) {
+    var target = e.target.closest ? e.target.closest('.toggle, .collapsed-summary') : null;
+    if (!target) return;
+    var node = target.closest('.node');
+    if (!node) return;
+    node.classList.toggle('collapsed');
+    renumber();
+  });
+
+  function renderTreeOrFlat(parsed, prettyText) {
+    if (prettyText.length > TREE_CHAR_LIMIT) {
+      renderFlat(prettyText, true);
+    } else {
+      renderTree(parsed);
+    }
+  }
+
+  /* ==========================================================
+     Stats line
+     ========================================================== */
+  function updateStats(originalText, parsed) {
+    var bytes = new Blob([originalText]).size;
+    var keyCount = countKeys(parsed);
+    var typeLabel;
+    if (Array.isArray(parsed)) {
+      typeLabel = 'Array (' + parsed.length + ' item' + (parsed.length === 1 ? '' : 's') + ')';
+    } else if (parsed !== null && typeof parsed === 'object') {
+      typeLabel = 'Object';
+    } else {
+      typeLabel = typeof parsed;
+    }
+    statsBox.textContent = formatBytes(bytes) + '  •  ' + keyCount + ' key' + (keyCount === 1 ? '' : 's') +
+      '  •  ' + typeLabel;
+  }
+
+  /* ==========================================================
+     Main pipeline
+     ========================================================== */
+  function resetOutput() {
+    output.innerHTML = '';
+    output.classList.add('empty');
+    statsBox.textContent = '';
+    lastOutputText = '';
+  }
+
+  function process(mode) {
+    var text = input.value;
+    clearError();
+
+    if (!text.trim()) {
+      resetOutput();
+      return;
+    }
+
+    var token = ++requestToken;
+
+    parseAsync(text, mode).then(function (result) {
+      if (token !== requestToken) return; // a newer request has since started
+
+      if (!result.ok) {
+        showError(result.error, text);
+        resetOutput();
+        return;
+      }
+
+      if (mode === 'format') {
+        lastOutputText = result.pretty;
+        renderTreeOrFlat(result.parsed, result.pretty);
+      } else {
+        lastOutputText = result.minified;
+        renderFlat(result.minified, false);
+      }
+
+      updateStats(text, result.parsed);
+    });
+  }
+
+  /* ==========================================================
+     Copy / Clear
+     ========================================================== */
+  function flashCopyButton(ok) {
+    var original = 'Copy';
+    btnCopy.textContent = ok ? 'Copied!' : 'Copy failed';
+    btnCopy.classList.toggle('copied', ok);
+    setTimeout(function () {
+      btnCopy.textContent = original;
+      btnCopy.classList.remove('copied');
+    }, 1200);
+  }
+
+  function copyOutput() {
+    if (!lastOutputText) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lastOutputText).then(
+        function () { flashCopyButton(true); },
+        function () { legacyCopy(); }
+      );
+    } else {
+      legacyCopy();
+    }
+  }
+
+  function legacyCopy() {
+    var ta = document.createElement('textarea');
+    ta.value = lastOutputText;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    flashCopyButton(ok);
+  }
+
+  function clearAll() {
+    input.value = '';
+    clearError();
+    resetOutput();
+    input.focus();
+  }
+
+  /* ==========================================================
+     Wiring
+     ========================================================== */
+  input.addEventListener('input', function () {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function () { process('format'); }, DEBOUNCE_MS);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      clearTimeout(debounceTimer);
+      process('format');
+    }
+  });
+
+  btnFormat.addEventListener('click', function () {
+    clearTimeout(debounceTimer);
+    process('format');
+  });
+  btnMinify.addEventListener('click', function () {
+    clearTimeout(debounceTimer);
+    process('minify');
+  });
+  btnCopy.addEventListener('click', copyOutput);
+  btnClear.addEventListener('click', clearAll);
+
+  /* ==========================================================
+     Initial demo content
+     ========================================================== */
+  input.value = JSON.stringify({
+    name: "JSON Formatter",
+    version: 1.0,
+    active: true,
+    owner: null,
+    tags: ["json", "formatter", "viewer"],
+    stats: { files: 1, dependencies: 0 }
+  }, null, 2);
+  process('format');
+})();
+</script>
+</body>
+</html>
