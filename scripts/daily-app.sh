@@ -19,8 +19,10 @@ self-contained single-file browser apps. Ship exactly ONE new app today,
 following the repo's own conventions. Today's date for naming purposes is
 whatever `date +%Y-%m-%d` returns in this shell.
 
-1. Run `git status` on `main`. If it isn't clean (uncommitted changes), stop
-   immediately and do nothing else — don't disturb work in progress.
+1. Run `git status --porcelain` on `main`. Only stop if a TRACKED file shows
+   staged or unstaged modifications (status codes other than a bare `??`) —
+   that means real work in progress. Pre-existing untracked files (`??`
+   lines) are not a reason to stop; ignore them.
 2. Read CONVENTIONS.md, IDEAS.md, and DAILY_LOG.md at the repo root.
 3. In IDEAS.md, find the first entry with `status: pending`. If there are
    none, stop and do nothing else (no branch, no commit).
@@ -40,8 +42,11 @@ whatever `date +%Y-%m-%d` returns in this shell.
    `shipped: <today>`.
 10. Add one row to the top of the table in DAILY_LOG.md: date, app name,
     folder, and the branch name (no PR — this is a local-only flow).
-11. Commit everything on that branch with a clear message. Do NOT merge into
-    main and do NOT push anywhere.
+11. Stage only the files you created/edited (the new app folder, IDEAS.md,
+    DAILY_LOG.md, root index.html) with explicit `git add <path>` calls —
+    never `git add -A` or `git add .`, so any unrelated stray file on disk
+    is never swept into the commit. Commit with a clear message. Do NOT
+    merge into main and do NOT push anywhere.
 12. Check out `main` again afterward so the working directory is clean and
     ready for tomorrow's run.
 13. Print a short final summary: which idea shipped, the folder, the branch
