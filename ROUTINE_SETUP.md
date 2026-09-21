@@ -32,8 +32,11 @@ it will show you the exact line before touching your crontab, since editing
 a user's crontab is a persistent system change):
 
 ```
-30 11 * * * /Users/dchiluv/dhanucoding/projects/scripts/daily-app.sh
+30 11 * * 1-5 /Users/dchiluv/dhanucoding/projects/scripts/daily-app.sh
 ```
+
+(`1-5` = Monday–Friday only — skips weekends, when the Mac is more likely to
+be asleep anyway.)
 
 Notes:
 - This is a plain macOS `cron` job. It will **not** fire if your Mac is
