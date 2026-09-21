@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Markdown Previewer</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-panel: #10151c;
+    --bg-elevated: #161b22;
+    --border: #21262d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --code-bg: #1a1f26;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+    flex: 0 0 auto;
+  }
+
+  header.topbar h1 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+
+  header.topbar .actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  button {
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  button:hover {
+    border-color: var(--accent);
+    color: var(--accent-hover);
+  }
+
+  .panes {
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
+  }
+
+  .pane {
+    flex: 1 1 50%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .pane + .pane {
+    border-left: 1px solid var(--border);
+  }
+
+  .pane-label {
+    padding: 8px 16px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    flex: 0 0 auto;
+  }
+
+  #editor {
+    flex: 1 1 auto;
+    resize: none;
+    border: none;
+    outline: none;
+    padding: 18px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  #preview {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 18px 26px;
+    background: var(--bg-panel);
+    line-height: 1.65;
+  }
+
+  #preview h1, #preview h2, #preview h3 {
+    margin: 0.8em 0 0.4em;
+    line-height: 1.25;
+  }
+
+  #preview h1 { font-size: 1.7rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+  #preview h2 { font-size: 1.4rem; }
+  #preview h3 { font-size: 1.15rem; }
+
+  #preview p { margin: 0.6em 0; }
+
+  #preview ul, #preview ol {
+    margin: 0.5em 0;
+    padding-left: 1.6em;
+  }
+
+  #preview li { margin: 0.2em 0; }
+
+  #preview blockquote {
+    margin: 0.6em 0;
+    padding: 0.4em 1em;
+    border-left: 3px solid var(--accent);
+    color: var(--text-dim);
+    background: rgba(88, 166, 255, 0.06);
+  }
+
+  #preview code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+
+  #preview pre {
+    margin: 0.7em 0;
+    padding: 12px 14px;
+    border-radius: 6px;
+    background: var(--code-bg);
+    overflow-x: auto;
+  }
+
+  #preview pre code {
+    background: none;
+    padding: 0;
+  }
+
+  #preview a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  #preview a:hover {
+    text-decoration: underline;
+  }
+
+  #preview hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1em 0;
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>Markdown Previewer</h1>
+      <div class="actions">
+        <button id="copyHtmlBtn">Copy HTML</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+    </header>
+
+    <div class="panes">
+      <section class="pane">
+        <div class="pane-label">Markdown</div>
+        <textarea id="editor" spellcheck="false" placeholder="Type Markdown here...">
+# Welcome
+
+Type **Markdown** on the left and see it *rendered* on the right.
+
+## Features
+
+- Headers, bold/italic
+- Ordered and unordered lists
+- [Links](https://example.com)
+- `inline code` and fenced code blocks
+- > Blockquotes
+
+```
+function hello() {
+  console.log("hi");
+}
+```
+</textarea>
+      </section>
+      <section class="pane">
+        <div class="pane-label">Preview</div>
+        <div id="preview"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function renderInline(text) {
+      let out = escapeHtml(text);
+      // links: [label](url)
+      out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      // inline code
+      out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // bold: **text** or __text__
+      out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      out = out.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+      // italic: *text* or _text_
+      out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      out = out.replace(/(^|[^\w])_([^_]+)_(?!\w)/g, '$1<em>$2</em>');
+      return out;
+    }
+
+    function renderMarkdown(src) {
+      const lines = src.replace(/\r\n/g, "\n").split("\n");
+      const html = [];
+      let i = 0;
+
+      let listType = null; // 'ul' | 'ol' | null
+      let inQuote = false;
+
+      function closeList() {
+        if (listType) {
+          html.push(listType === "ul" ? "</ul>" : "</ol>");
+          listType = null;
+        }
+      }
+
+      function closeQuote() {
+        if (inQuote) {
+          html.push("</blockquote>");
+          inQuote = false;
+        }
+      }
+
+      while (i < lines.length) {
+        const line = lines[i];
+
+        // fenced code block
+        const fence = line.match(/^```(.*)$/);
+        if (fence) {
+          closeList();
+          closeQuote();
+          const codeLines = [];
+          i++;
+          while (i < lines.length && !/^```/.test(lines[i])) {
+            codeLines.push(lines[i]);
+            i++;
+          }
+          i++; // skip closing fence
+          html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+          continue;
+        }
+
+        // blank line
+        if (/^\s*$/.test(line)) {
+          closeList();
+          closeQuote();
+          i++;
+          continue;
+        }
+
+        // horizontal rule
+        if (/^(---|\*\*\*|___)\s*$/.test(line)) {
+          closeList();
+          closeQuote();
+          html.push("<hr>");
+          i++;
+          continue;
+        }
+
+        // headers
+        const header = line.match(/^(#{1,6})\s+(.*)$/);
+        if (header) {
+          closeList();
+          closeQuote();
+          const level = header[1].length;
+          html.push(`<h${level}>${renderInline(header[2])}</h${level}>`);
+          i++;
+          continue;
+        }
+
+        // blockquote
+        const quote = line.match(/^>\s?(.*)$/);
+        if (quote) {
+          closeList();
+          if (!inQuote) {
+            html.push("<blockquote>");
+            inQuote = true;
+          }
+          html.push(`<p>${renderInline(quote[1])}</p>`);
+          i++;
+          continue;
+        }
+        closeQuote();
+
+        // unordered list
+        const ul = line.match(/^\s*[-*+]\s+(.*)$/);
+        if (ul) {
+          if (listType !== "ul") {
+            closeList();
+            html.push("<ul>");
+            listType = "ul";
+          }
+          html.push(`<li>${renderInline(ul[1])}</li>`);
+          i++;
+          continue;
+        }
+
+        // ordered list
+        const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+        if (ol) {
+          if (listType !== "ol") {
+            closeList();
+            html.push("<ol>");
+            listType = "ol";
+          }
+          html.push(`<li>${renderInline(ol[1])}</li>`);
+          i++;
+          continue;
+        }
+        closeList();
+
+        // paragraph
+        html.push(`<p>${renderInline(line)}</p>`);
+        i++;
+      }
+
+      closeList();
+      closeQuote();
+      return html.join("\n");
+    }
+
+    const editor = document.getElementById("editor");
+    const preview = document.getElementById("preview");
+    const copyHtmlBtn = document.getElementById("copyHtmlBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    function update() {
+      preview.innerHTML = renderMarkdown(editor.value);
+    }
+
+    editor.addEventListener("input", update);
+
+    copyHtmlBtn.addEventListener("click", async () => {
+      const html = renderMarkdown(editor.value);
+      try {
+        await navigator.clipboard.writeText(html);
+        copyHtmlBtn.textContent = "Copied!";
+        setTimeout(() => (copyHtmlBtn.textContent = "Copy HTML"), 1200);
+      } catch (e) {
+        copyHtmlBtn.textContent = "Failed";
+        setTimeout(() => (copyHtmlBtn.textContent = "Copy HTML"), 1200);
+      }
+    });
+
+    clearBtn.addEventListener("click", () => {
+      editor.value = "";
+      update();
+      editor.focus();
+    });
+
+    update();
+  </script>
+</body>
+</html>

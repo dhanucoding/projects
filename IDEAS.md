@@ -10,11 +10,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
 
 ---
 
-1. status: pending
+1. status: done
    slug: markdown-previewer
    name: Markdown Previewer
    one-liner: Paste Markdown, see a live-rendered preview and copy the generated HTML.
    notes: Hand-roll a small markdown subset (headers, bold/italic, lists, links, code, blockquote, quote). Split-pane layout like jsonFormatter.
+   shipped: 2026-09-18
 
 2. status: pending
    slug: regex-tester
