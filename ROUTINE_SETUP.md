@@ -1,9 +1,21 @@
-# Daily App Routine — Local Cron Setup
+# Daily App Routine — Manual Trigger (for now)
 
-The daily app-generation routine runs **locally** via `cron`, invoking Claude
-Code headlessly (`claude -p ...`) once a day. It creates a new branch,
-scaffolds one app from `IDEAS.md`, and commits — it never pushes or merges
-into `main`. You review the branch's diff and merge it yourself.
+**Current status: manual only.** There is no cron/launchd job installed —
+just ask Claude Code to run `scripts/daily-app.sh` and it'll ship the day's
+app. It creates a new branch, scaffolds one app from `IDEAS.md`, and
+commits — it never pushes or merges into `main`. You review the branch's
+diff and merge it yourself.
+
+## Why manual right now
+
+A `cron` job was tried and removed. `cron` runs outside your logged-in GUI
+session, so it can't read the Claude Code login stored in macOS Keychain
+(`Claude Code-credentials`) — every cron-triggered run failed immediately
+with `Not logged in · Please run /login`, even though the crontab entry
+itself was firing correctly. The fix is to switch to a `launchd`
+LaunchAgent instead (see below) — that wasn't done yet, so for now the
+routine is triggered by hand, which always runs with your already-logged-in
+session and works fine.
 
 ## How it works
 
@@ -22,35 +34,28 @@ into `main`. You review the branch's diff and merge it yourself.
   changes if `main` isn't clean, if today's branch already exists, or if the
   `IDEAS.md` backlog is exhausted — so it's safe to leave running indefinitely.
 
-## One-time setup: register the cron job
+## Triggering it manually
 
-Cron uses your Mac's local system clock, so an 11:30 AM entry stays correct
-across the PST/PDT switch automatically (unlike a fixed-UTC cloud schedule).
-
-Add this line to your crontab (`crontab -e`, or ask Claude Code to do it —
-it will show you the exact line before touching your crontab, since editing
-a user's crontab is a persistent system change):
+Just ask Claude Code (or run directly):
 
 ```
-30 11 * * 1-5 /Users/dchiluv/dhanucoding/projects/scripts/daily-app.sh
+/Users/dchiluv/dhanucoding/projects/scripts/daily-app.sh
 ```
 
-(`1-5` = Monday–Friday only — skips weekends, when the Mac is more likely to
-be asleep anyway.)
+It auto-guards against re-running the same day (checks for a
+`daily-app/<slug>-<today>` branch) and against a dirty `main`, so it's safe
+to trigger more than once without double-shipping.
 
-Notes:
-- This is a plain macOS `cron` job. It will **not** fire if your Mac is
-  asleep at 11:30 AM (laptops closed overnight, etc.) — cron just skips that
-  run, it doesn't queue it for later. If that turns out to be a problem in
-  practice, switch to a `launchd` agent instead (a `.plist` with
-  `StartCalendarInterval`), which behaves the same way but can be configured
-  to catch up missed runs; ask Claude Code to convert it if needed.
-- No special macOS permissions are needed since `/Users/dchiluv/dhanucoding`
-  isn't one of the specially protected folders (Desktop/Documents/Downloads/
-  iCloud). If you ever move the repo under one of those, cron would need
-  "Full Disk Access" granted in System Settings → Privacy & Security.
-- Requires you to already be logged into Claude Code on this machine
-  (`claude` CLI auth) — the cron job runs as your user and reuses that.
+## Re-enabling automatic scheduling later (launchd, not cron)
+
+If you want this automatic again, use a `launchd` LaunchAgent (a `.plist`
+in `~/Library/LaunchAgents/`, loaded via `launchctl`), not `cron` — plain
+`cron` is what hit the Keychain problem above. A `launchd` **user** agent
+runs inside your session and has normal Keychain access, and as a bonus it
+also catches up a run that was missed because the Mac was asleep at the
+scheduled time (`cron` just silently skips it). Ask Claude Code to set this
+up when you're ready; no code changes needed, `scripts/daily-app.sh` stays
+the same.
 
 ## Reviewing a day's output
 
