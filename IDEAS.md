@@ -17,11 +17,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Hand-roll a small markdown subset (headers, bold/italic, lists, links, code, blockquote, quote). Split-pane layout like jsonFormatter.
    shipped: 2026-09-18
 
-2. status: pending
+2. status: done
    slug: regex-tester
    name: Regex Tester
    one-liner: Test a regex against sample text with live match highlighting and group breakdown.
    notes: Use native JS RegExp; show flags toggle, match list with capture groups, and common syntax cheatsheet.
+   shipped: 2026-09-22
 
 3. status: pending
    slug: diff-checker

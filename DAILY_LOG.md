@@ -5,4 +5,5 @@ and `IDEAS.md`). Newest first.
 
 | Date | App | Folder | PR |
 |------|-----|--------|----|
+| 2026-09-22 | Regex Tester | `regex-tester/` | branch: `daily-app/regex-tester-2026-09-22` |
 | 2026-09-18 | Markdown Previewer | `markdown-previewer/` | branch: `daily-app/markdown-previewer-2026-09-18` |
