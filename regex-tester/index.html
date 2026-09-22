@@ -102,6 +102,28 @@
     font-size: 0.88rem;
   }
 
+  .explain-panel {
+    margin-bottom: 14px;
+  }
+
+  .explain-view {
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    line-height: 1.7;
+    max-height: 220px;
+    overflow: auto;
+  }
+
+  .explain-line {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .explain-line .marker {
+    color: var(--accent);
+    margin-right: 6px;
+  }
+
   .layout {
     display: grid;
     grid-template-columns: 1.3fr 1fr;
@@ -288,6 +310,11 @@
 
     <div class="error-banner" id="errorBanner"></div>
 
+    <div class="panel explain-panel">
+      <h2>What this pattern matches</h2>
+      <div id="explainView" class="explain-view"></div>
+    </div>
+
     <div class="layout">
       <div class="panel">
         <h2>Sample Text</h2>
@@ -334,10 +361,279 @@ Alt: jane.doe123@sub.domain.io</textarea>
   const highlightView = document.getElementById('highlightView');
   const matchCount = document.getElementById('matchCount');
   const matchList = document.getElementById('matchList');
+  const explainView = document.getElementById('explainView');
   const flagButtons = document.querySelectorAll('.flag-btn');
 
   function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ================================================================
+     Plain-English pattern explainer.
+     A small hand-rolled recursive-descent parser turns the pattern
+     into a tree (sequences, alternation, groups, classes, escapes,
+     quantifiers), which is then flattened into indented description
+     lines. It's a best-effort explainer, not a full regex validator —
+     `buildRegex()` (native RegExp) is still what decides if the
+     pattern is actually valid.
+     ================================================================ */
+  const ESCAPE_DESCRIPTIONS = {
+    d: 'any digit (0-9)',
+    D: 'any non-digit',
+    w: 'any word character (letter, digit, or underscore)',
+    W: 'any non-word character',
+    s: 'any whitespace character',
+    S: 'any non-whitespace character',
+    b: 'a word boundary',
+    B: 'a position that is NOT a word boundary',
+    n: 'a newline',
+    t: 'a tab',
+    r: 'a carriage return',
+    0: 'a null character'
+  };
+
+  function parsePattern(pattern) {
+    let i = 0;
+    let groupCounter = 0;
+
+    function peek(offset) { return pattern[i + (offset || 0)]; }
+
+    function parseAlternation() {
+      const branches = [parseSequence()];
+      while (peek() === '|') {
+        i++;
+        branches.push(parseSequence());
+      }
+      return branches.length === 1 ? branches[0] : { type: 'alt', branches };
+    }
+
+    function parseSequence() {
+      const nodes = [];
+      while (i < pattern.length && peek() !== '|' && peek() !== ')') {
+        nodes.push(parseQuantified());
+      }
+      return { type: 'seq', nodes };
+    }
+
+    function parseQuantified() {
+      const atom = parseAtom();
+      const quant = parseQuantifier();
+      return quant ? { type: 'quant', atom, quant } : atom;
+    }
+
+    function parseQuantifier() {
+      const c = peek();
+      if (c === '*' || c === '+' || c === '?') {
+        i++;
+        let lazy = false;
+        if (peek() === '?') { lazy = true; i++; }
+        return { symbol: c, lazy };
+      }
+      if (c === '{') {
+        const m = /^\{(\d+)(,(\d*))?\}/.exec(pattern.slice(i));
+        if (m) {
+          i += m[0].length;
+          let lazy = false;
+          if (peek() === '?') { lazy = true; i++; }
+          return { symbol: '{}', min: m[1], hasComma: !!m[2], max: m[3], lazy };
+        }
+      }
+      return null;
+    }
+
+    function parseAtom() {
+      const c = peek();
+
+      if (c === '(') {
+        i++;
+        let kind = 'capture', name = null;
+        if (peek() === '?') {
+          if (peek(1) === ':') { kind = 'noncapture'; i += 2; }
+          else if (peek(1) === '=') { kind = 'lookahead'; i += 2; }
+          else if (peek(1) === '!') { kind = 'neglookahead'; i += 2; }
+          else if (peek(1) === '<' && peek(2) === '=') { kind = 'lookbehind'; i += 3; }
+          else if (peek(1) === '<' && peek(2) === '!') { kind = 'neglookbehind'; i += 3; }
+          else if (peek(1) === '<') {
+            const end = pattern.indexOf('>', i + 2);
+            name = pattern.slice(i + 2, end === -1 ? pattern.length : end);
+            kind = 'namedcapture';
+            i = (end === -1 ? pattern.length : end + 1);
+          }
+        } else {
+          groupCounter++;
+          name = groupCounter;
+        }
+        const inner = parseAlternation();
+        if (peek() === ')') i++;
+        return { type: 'group', kind, name, inner };
+      }
+
+      if (c === '[') {
+        i++;
+        let negated = false;
+        if (peek() === '^') { negated = true; i++; }
+        let content = '';
+        if (peek() === ']') { content += ']'; i++; }
+        while (i < pattern.length && peek() !== ']') {
+          if (peek() === '\\') { content += peek() + (peek(1) || ''); i += 2; }
+          else { content += peek(); i++; }
+        }
+        i++; // consume ']'
+        return { type: 'class', negated, content };
+      }
+
+      if (c === '\\') {
+        const next = peek(1);
+        i += 2;
+        if (/[1-9]/.test(next)) {
+          let num = next;
+          while (/[0-9]/.test(peek())) { num += peek(); i++; }
+          return { type: 'backref', num };
+        }
+        if (next === 'k' && peek() === '<') {
+          const end = pattern.indexOf('>', i);
+          const name = pattern.slice(i + 1, end === -1 ? pattern.length : end);
+          i = (end === -1 ? pattern.length : end + 1);
+          return { type: 'namedbackref', name };
+        }
+        if ((next === 'p' || next === 'P') && peek() === '{') {
+          const end = pattern.indexOf('}', i);
+          const prop = pattern.slice(i + 1, end === -1 ? pattern.length : end);
+          i = (end === -1 ? pattern.length : end + 1);
+          return { type: 'unicodeprop', negated: next === 'P', prop };
+        }
+        return { type: 'escape', char: next };
+      }
+
+      if (c === '.') { i++; return { type: 'dot' }; }
+      if (c === '^') { i++; return { type: 'anchor', which: 'start' }; }
+      if (c === '$') { i++; return { type: 'anchor', which: 'end' }; }
+
+      i++;
+      return { type: 'literal', char: c };
+    }
+
+    return parseAlternation();
+  }
+
+  function describeClassContent(content) {
+    const parts = [];
+    let j = 0;
+    while (j < content.length) {
+      if (content[j] === '\\') {
+        const nc = content[j + 1];
+        parts.push(ESCAPE_DESCRIPTIONS[nc] || `the character "${nc}"`);
+        j += 2;
+        continue;
+      }
+      if (content[j + 1] === '-' && content[j + 2] !== undefined) {
+        parts.push(`"${content[j]}" to "${content[j + 2]}"`);
+        j += 3;
+        continue;
+      }
+      parts.push(`"${content[j]}"`);
+      j++;
+    }
+    return parts.length ? parts.join(', ') : '(empty)';
+  }
+
+  function describeQuant(q) {
+    const laziness = q.lazy ? ' (as few times as possible)' : '';
+    if (q.symbol === '*') return `zero or more times${laziness}`;
+    if (q.symbol === '+') return `one or more times${laziness}`;
+    if (q.symbol === '?') return `zero or one time (optional)${laziness}`;
+    if (q.symbol === '{}') {
+      if (!q.hasComma) return `exactly ${q.min} time${q.min === '1' ? '' : 's'}`;
+      if (q.max === '') return `${q.min} or more times${laziness}`;
+      return `between ${q.min} and ${q.max} times${laziness}`;
+    }
+    return '';
+  }
+
+  function groupLabel(node) {
+    switch (node.kind) {
+      case 'capture': return `Capturing group ${node.name} — match:`;
+      case 'namedcapture': return `Capturing group "${node.name}" — match:`;
+      case 'noncapture': return 'A group (not captured) — match:';
+      case 'lookahead': return 'Must be followed by (lookahead):';
+      case 'neglookahead': return 'Must NOT be followed by (negative lookahead):';
+      case 'lookbehind': return 'Must be preceded by (lookbehind):';
+      case 'neglookbehind': return 'Must NOT be preceded by (negative lookbehind):';
+      default: return 'Group:';
+    }
+  }
+
+  function describeNode(node, depth, lines) {
+    switch (node.type) {
+      case 'seq':
+        node.nodes.forEach(n => describeNode(n, depth, lines));
+        break;
+      case 'alt':
+        lines.push({ depth, text: 'Match any ONE of these alternatives:' });
+        node.branches.forEach((b, idx) => {
+          lines.push({ depth: depth + 1, text: `Alternative ${idx + 1}:` });
+          describeNode(b, depth + 2, lines);
+        });
+        break;
+      case 'quant':
+        describeNode(node.atom, depth, lines);
+        lines.push({ depth: depth + 1, text: `↳ repeated: ${describeQuant(node.quant)}` });
+        break;
+      case 'group':
+        lines.push({ depth, text: groupLabel(node) });
+        describeNode(node.inner, depth + 1, lines);
+        break;
+      case 'class':
+        lines.push({
+          depth,
+          text: `${node.negated ? 'Any character NOT in' : 'One character from'} the set: ${describeClassContent(node.content)}`
+        });
+        break;
+      case 'escape':
+        lines.push({ depth, text: ESCAPE_DESCRIPTIONS[node.char] || `the literal character "${node.char}"` });
+        break;
+      case 'backref':
+        lines.push({ depth, text: `The same text matched by group ${node.num} (backreference)` });
+        break;
+      case 'namedbackref':
+        lines.push({ depth, text: `The same text matched by named group "${node.name}" (backreference)` });
+        break;
+      case 'unicodeprop':
+        lines.push({ depth, text: `${node.negated ? 'Not a' : 'A'} Unicode character with property "${node.prop}"` });
+        break;
+      case 'dot':
+        lines.push({ depth, text: 'Any character (except line break, unless the "s" flag is set)' });
+        break;
+      case 'anchor':
+        lines.push({ depth, text: node.which === 'start' ? 'Start of the string (or line, with the "m" flag)' : 'End of the string (or line, with the "m" flag)' });
+        break;
+      case 'literal':
+        lines.push({ depth, text: `The character "${node.char}"` });
+        break;
+    }
+  }
+
+  function explainPattern(pattern) {
+    if (!pattern) return [];
+    const ast = parsePattern(pattern);
+    const lines = [];
+    describeNode(ast, 0, lines);
+    return lines;
+  }
+
+  function updateExplanation(pattern) {
+    if (!pattern) {
+      explainView.innerHTML = '<div class="empty-state">Enter a pattern above to see what it matches.</div>';
+      return;
+    }
+    try {
+      const lines = explainPattern(pattern);
+      explainView.innerHTML = lines.map(l =>
+        `<div class="explain-line" style="padding-left:${l.depth * 18}px"><span class="marker">›</span>${escapeHtml(l.text)}</div>`
+      ).join('') || '<div class="empty-state">Nothing to explain.</div>';
+    } catch (err) {
+      explainView.innerHTML = '<div class="empty-state">Could not analyze this pattern (likely incomplete or unbalanced syntax).</div>';
+    }
   }
 
   function activeFlags() {
@@ -358,6 +654,7 @@ Alt: jane.doe123@sub.domain.io</textarea>
   function render() {
     errorBanner.style.display = 'none';
     const text = testText.value;
+    updateExplanation(patternInput.value);
     let re;
     try {
       re = buildRegex();
