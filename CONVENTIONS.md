@@ -12,6 +12,13 @@ pattern so every new app (hand-written or auto-generated) stays consistent.
   dependency (matches `kanban/` and `jsonFormatter/`). If a small algorithm is
   needed (e.g. QR encoding, a markdown parser), hand-roll a minimal version
   inline rather than pulling in a library.
+  - **Exception:** if the underlying algorithm is genuinely too large to
+    reasonably hand-roll (a full diagramming/layout engine like Mermaid, for
+    example), it's fine to vendor the real library by pasting its built
+    source directly into an inline `<script>` — the "no CDN" rule is really
+    about staying single-file and offline-capable, not about banning every
+    third-party line of code. Still no `<script src="https://...">` CDN
+    fetch at runtime.
 - Each app folder also gets a `README.md` (template below).
 - Persisted data (if any) uses `localStorage`/`IndexedDB` client-side — no backend.
 
