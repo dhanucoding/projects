@@ -47,11 +47,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Implement a simple LCS-based diff algorithm inline; side-by-side or unified view toggle.
    shipped: 2026-09-28
 
-5. status: pending
+5. status: done
    slug: color-tools
    name: Color Converter & Contrast Checker
    one-liner: Convert between HEX/RGB/HSL and check WCAG contrast ratios for a foreground/background pair.
    notes: Include a live swatch preview and pass/fail badges for AA/AAA text sizes.
+   shipped: 2026-09-28
 
 6. status: pending
    slug: unit-converter
