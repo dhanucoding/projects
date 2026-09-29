@@ -24,10 +24,14 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Use native JS RegExp; show flags toggle, match list with capture groups, and common syntax cheatsheet.
    shipped: 2026-09-22
 
-3. status: pending
+3. status: skipped
    slug: mermaid-viewer
    name: Mermaid Diagram Viewer
    one-liner: Paste Mermaid syntax (flowcharts, sequence diagrams, class diagrams, etc.) and see it rendered live.
+   skipped: 2026-09-28
+   skipped-reason: The daily routine runs with no network tools (allowedTools is git + file tools only), so it
+     can't download mermaid.js to vendor inline. Needs the library fetched by hand first, then flip back to
+     `pending`. Left in place rather than deleted so the plan isn't lost.
    notes: EXCEPTION to the usual "hand-roll it" guardrail — Mermaid's parser/layout engine is too large to
      reasonably hand-roll. Vendor the real mermaid.js: download its minified UMD/IIFE build and paste the
      source directly into index.html as an inline <script> (not a CDN <script src> — must still work
