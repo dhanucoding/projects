@@ -40,11 +40,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
      Keep a couple of example diagrams (one flowchart, one sequence diagram) pre-filled so it's obviously
      working on first load.
 
-4. status: pending
+4. status: done
    slug: diff-checker
    name: Text Diff Checker
    one-liner: Compare two blocks of text and highlight line/word-level differences.
    notes: Implement a simple LCS-based diff algorithm inline; side-by-side or unified view toggle.
+   shipped: 2026-09-28
 
 5. status: pending
    slug: color-tools

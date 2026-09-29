@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Diff Checker</title>
+<style>
+  :root {
+    --bg: #1e2128;
+    --panel: #262a33;
+    --panel-border: #383d47;
+    --text: #e6e8ee;
+    --muted: #8b93a3;
+    --accent: #5aa9e6;
+    --add-bg: rgba(78, 201, 145, 0.16);
+    --add-strong: rgba(78, 201, 145, 0.38);
+    --add-text: #7fe0ac;
+    --del-bg: rgba(224, 108, 117, 0.16);
+    --del-strong: rgba(224, 108, 117, 0.38);
+    --del-text: #f0959c;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  .shell { max-width: 1200px; margin: 0 auto; }
+
+  header { margin-bottom: 20px; }
+
+  header a { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+  header a:hover { color: var(--accent); }
+
+  h1 { margin: 10px 0 4px; font-size: 1.5rem; }
+
+  header p { color: var(--muted); margin: 0; font-size: 0.9rem; }
+
+  .inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 18px;
+  }
+
+  .input-col { display: flex; flex-direction: column; gap: 6px; }
+
+  .input-col label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  textarea {
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+  }
+
+  button, .toggle button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .toggle { display: inline-flex; border-radius: 8px; overflow: hidden; border: 1px solid var(--panel-border); }
+  .toggle button { border: none; border-radius: 0; }
+  .toggle button.active { background: var(--accent); color: #10131a; }
+
+  .stats { margin-left: auto; display: flex; gap: 14px; font-size: 0.85rem; color: var(--muted); }
+  .stats .add-count { color: var(--add-text); }
+  .stats .del-count { color: var(--del-text); }
+
+  .diff-panel {
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: var(--panel);
+    overflow: auto;
+    max-height: 60vh;
+  }
+
+  .empty-state { padding: 30px; text-align: center; color: var(--muted); }
+
+  /* Unified view */
+  table.unified { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  table.unified td { padding: 2px 10px; vertical-align: top; white-space: pre-wrap; word-break: break-word; }
+  table.unified td.lineno {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+    color: var(--muted);
+    user-select: none;
+    padding-right: 12px;
+  }
+  table.unified td.marker { width: 1%; white-space: nowrap; user-select: none; }
+  tr.row-add { background: var(--add-bg); }
+  tr.row-del { background: var(--del-bg); }
+  tr.row-add td.marker { color: var(--add-text); }
+  tr.row-del td.marker { color: var(--del-text); }
+
+  /* Side-by-side view */
+  table.sbs { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: fixed; }
+  table.sbs td { padding: 2px 10px; vertical-align: top; white-space: pre-wrap; word-break: break-word; }
+  table.sbs td.lineno {
+    width: 40px;
+    text-align: right;
+    color: var(--muted);
+    user-select: none;
+    padding-right: 10px;
+  }
+  table.sbs td.content { width: calc(50% - 40px); }
+  td.side-del { background: var(--del-bg); }
+  td.side-add { background: var(--add-bg); }
+  td.side-empty { background: rgba(255,255,255,0.02); }
+
+  mark.del-inline { background: var(--del-strong); color: var(--del-text); border-radius: 3px; text-decoration: none; }
+  mark.add-inline { background: var(--add-strong); color: var(--add-text); border-radius: 3px; text-decoration: none; }
+
+  .col-divider { border-left: 1px solid var(--panel-border); }
+
+  footer { margin-top: 18px; color: var(--muted); font-size: 0.8rem; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a href="../index.html">&larr; Back to hub</a>
+      <h1>Text Diff Checker</h1>
+      <p>Compare two blocks of text and highlight line- and word-level differences. Everything runs client-side.</p>
+    </header>
+
+    <div class="inputs">
+      <div class="input-col">
+        <label for="original">Original</label>
+        <textarea id="original" spellcheck="false" placeholder="Paste the original text here..."></textarea>
+      </div>
+      <div class="input-col">
+        <label for="changed">Changed</label>
+        <textarea id="changed" spellcheck="false" placeholder="Paste the changed text here..."></textarea>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button id="swap-btn" title="Swap original and changed">&#8646; Swap</button>
+      <button id="example-btn">Load example</button>
+      <div class="toggle">
+        <button id="view-sbs" class="active">Side-by-side</button>
+        <button id="view-unified">Unified</button>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="diff-panel" id="diff-output">
+      <div class="empty-state">Paste text on both sides to see a diff.</div>
+    </div>
+
+    <footer>Diffing is computed with a hand-rolled LCS algorithm — no libraries, no network calls.</footer>
+  </div>
+
+<script>
+(function () {
+  const originalEl = document.getElementById('original');
+  const changedEl = document.getElementById('changed');
+  const outputEl = document.getElementById('diff-output');
+  const statsEl = document.getElementById('stats');
+  const sbsBtn = document.getElementById('view-sbs');
+  const unifiedBtn = document.getElementById('view-unified');
+
+  let viewMode = 'sbs';
+  let debounceTimer = null;
+
+  function lcsDiff(a, b, equalFn) {
+    const eq = equalFn || ((x, y) => x === y);
+    const n = a.length, m = b.length;
+    const dp = new Array(n + 1);
+    for (let i = 0; i <= n; i++) dp[i] = new Int32Array(m + 1);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = eq(a[i], b[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (eq(a[i], b[j])) { ops.push({ type: 'equal', a: a[i], b: b[j] }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ type: 'del', a: a[i] }); i++; }
+      else { ops.push({ type: 'ins', b: b[j] }); j++; }
+    }
+    while (i < n) { ops.push({ type: 'del', a: a[i] }); i++; }
+    while (j < m) { ops.push({ type: 'ins', b: b[j] }); j++; }
+    return ops;
+  }
+
+  // Group consecutive del/ins runs, pairing them index-wise into "modified" entries
+  // (for word-level highlighting) when both runs are non-empty.
+  function groupOps(ops) {
+    const grouped = [];
+    let i = 0;
+    while (i < ops.length) {
+      const op = ops[i];
+      if (op.type === 'equal') { grouped.push(op); i++; continue; }
+      const dels = [];
+      const inss = [];
+      let j = i;
+      while (j < ops.length && ops[j].type === 'del') { dels.push(ops[j].a); j++; }
+      while (j < ops.length && ops[j].type === 'ins') { inss.push(ops[j].b); j++; }
+      const pairCount = Math.min(dels.length, inss.length);
+      for (let k = 0; k < pairCount; k++) grouped.push({ type: 'modified', a: dels[k], b: inss[k] });
+      for (let k = pairCount; k < dels.length; k++) grouped.push({ type: 'del', a: dels[k] });
+      for (let k = pairCount; k < inss.length; k++) grouped.push({ type: 'ins', b: inss[k] });
+      i = j;
+    }
+    return grouped;
+  }
+
+  function tokenize(line) {
+    return line.match(/\w+|[^\S\n]+|[^\w\s]/g) || [];
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Word-level diff between two lines, returns HTML for old (with del marks) and new (with ins marks).
+  function wordDiffHtml(oldLine, newLine) {
+    const a = tokenize(oldLine);
+    const b = tokenize(newLine);
+    const ops = lcsDiff(a, b);
+    let oldHtml = '', newHtml = '';
+    for (const op of ops) {
+      if (op.type === 'equal') {
+        oldHtml += escapeHtml(op.a);
+        newHtml += escapeHtml(op.b);
+      } else if (op.type === 'del') {
+        oldHtml += '<mark class="del-inline">' + escapeHtml(op.a) + '</mark>';
+      } else {
+        newHtml += '<mark class="add-inline">' + escapeHtml(op.b) + '</mark>';
+      }
+    }
+    return { oldHtml, newHtml };
+  }
+
+  function computeStats(grouped) {
+    let added = 0, removed = 0, modified = 0;
+    for (const op of grouped) {
+      if (op.type === 'ins') added++;
+      else if (op.type === 'del') removed++;
+      else if (op.type === 'modified') modified++;
+    }
+    return { added, removed, modified };
+  }
+
+  function renderUnified(grouped) {
+    let oldNo = 1, newNo = 1;
+    let rows = '';
+    for (const op of grouped) {
+      if (op.type === 'equal') {
+        rows += `<tr><td class="lineno">${oldNo}</td><td class="lineno">${newNo}</td><td class="marker"> </td><td>${escapeHtml(op.a)}</td></tr>`;
+        oldNo++; newNo++;
+      } else if (op.type === 'del') {
+        rows += `<tr class="row-del"><td class="lineno">${oldNo}</td><td class="lineno"></td><td class="marker">-</td><td>${escapeHtml(op.a)}</td></tr>`;
+        oldNo++;
+      } else if (op.type === 'ins') {
+        rows += `<tr class="row-add"><td class="lineno"></td><td class="lineno">${newNo}</td><td class="marker">+</td><td>${escapeHtml(op.b)}</td></tr>`;
+        newNo++;
+      } else if (op.type === 'modified') {
+        const { oldHtml, newHtml } = wordDiffHtml(op.a, op.b);
+        rows += `<tr class="row-del"><td class="lineno">${oldNo}</td><td class="lineno"></td><td class="marker">-</td><td>${oldHtml}</td></tr>`;
+        rows += `<tr class="row-add"><td class="lineno"></td><td class="lineno">${newNo}</td><td class="marker">+</td><td>${newHtml}</td></tr>`;
+        oldNo++; newNo++;
+      }
+    }
+    outputEl.innerHTML = `<table class="unified">${rows}</table>`;
+  }
+
+  function renderSideBySide(grouped) {
+    let oldNo = 1, newNo = 1;
+    let rows = '';
+    for (const op of grouped) {
+      if (op.type === 'equal') {
+        const t = escapeHtml(op.a);
+        rows += `<tr><td class="lineno">${oldNo}</td><td class="content">${t}</td><td class="lineno col-divider">${newNo}</td><td class="content">${t}</td></tr>`;
+        oldNo++; newNo++;
+      } else if (op.type === 'del') {
+        rows += `<tr><td class="lineno">${oldNo}</td><td class="content side-del">${escapeHtml(op.a)}</td><td class="lineno col-divider"></td><td class="content side-empty"></td></tr>`;
+        oldNo++;
+      } else if (op.type === 'ins') {
+        rows += `<tr><td class="lineno"></td><td class="content side-empty"></td><td class="lineno col-divider">${newNo}</td><td class="content side-add">${escapeHtml(op.b)}</td></tr>`;
+        newNo++;
+      } else if (op.type === 'modified') {
+        const { oldHtml, newHtml } = wordDiffHtml(op.a, op.b);
+        rows += `<tr><td class="lineno">${oldNo}</td><td class="content side-del">${oldHtml}</td><td class="lineno col-divider">${newNo}</td><td class="content side-add">${newHtml}</td></tr>`;
+        oldNo++; newNo++;
+      }
+    }
+    outputEl.innerHTML = `<table class="sbs">${rows}</table>`;
+  }
+
+  function render() {
+    const originalText = originalEl.value;
+    const changedText = changedEl.value;
+
+    if (!originalText && !changedText) {
+      outputEl.innerHTML = '<div class="empty-state">Paste text on both sides to see a diff.</div>';
+      statsEl.textContent = '';
+      return;
+    }
+
+    const a = originalText.split('\n');
+    const b = changedText.split('\n');
+    const ops = lcsDiff(a, b);
+    const grouped = groupOps(ops);
+
+    if (viewMode === 'sbs') renderSideBySide(grouped);
+    else renderUnified(grouped);
+
+    const stats = computeStats(grouped);
+    statsEl.innerHTML =
+      `<span class="add-count">+${stats.added + stats.modified} added</span>` +
+      `<span class="del-count">-${stats.removed + stats.modified} removed</span>` +
+      `<span>${stats.modified} modified</span>`;
+  }
+
+  function scheduleRender() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 150);
+  }
+
+  originalEl.addEventListener('input', scheduleRender);
+  changedEl.addEventListener('input', scheduleRender);
+
+  sbsBtn.addEventListener('click', () => {
+    viewMode = 'sbs';
+    sbsBtn.classList.add('active');
+    unifiedBtn.classList.remove('active');
+    render();
+  });
+
+  unifiedBtn.addEventListener('click', () => {
+    viewMode = 'unified';
+    unifiedBtn.classList.add('active');
+    sbsBtn.classList.remove('active');
+    render();
+  });
+
+  document.getElementById('swap-btn').addEventListener('click', () => {
+    const tmp = originalEl.value;
+    originalEl.value = changedEl.value;
+    changedEl.value = tmp;
+    render();
+  });
+
+  document.getElementById('example-btn').addEventListener('click', () => {
+    originalEl.value = [
+      'function greet(name) {',
+      '  console.log("Hello, " + name);',
+      '  return true;',
+      '}',
+      '',
+      'greet("World");'
+    ].join('\n');
+    changedEl.value = [
+      'function greet(name, greeting) {',
+      '  console.log(greeting + ", " + name);',
+      '  return true;',
+      '}',
+      '',
+      'greet("World", "Hi");',
+      'greet("Claude", "Hi");'
+    ].join('\n');
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
