@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unit Converter</title>
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --panel: #ffffff;
+    --panel-border: rgba(126, 99, 75, 0.16);
+    --text: #2d241e;
+    --muted: #6d625a;
+    --accent: #ba6f3b;
+    --accent-soft: #f2d6bd;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  }
+
+  .shell { max-width: 800px; margin: 0 auto; }
+
+  header { margin-bottom: 20px; }
+  header a { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+  header a:hover { color: var(--accent); }
+  h1 { margin: 10px 0 4px; font-size: 1.6rem; }
+  header p { color: var(--muted); margin: 0; font-size: 0.92rem; }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin: 22px 0 16px;
+    flex-wrap: wrap;
+  }
+
+  .tab {
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff8f1;
+  }
+
+  .panel {
+    border: 1px solid var(--panel-border);
+    border-radius: 18px;
+    background: var(--panel);
+    padding: 22px;
+    box-shadow: 0 14px 34px rgba(77, 53, 36, 0.08);
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .field-row:last-child { border-bottom: none; }
+
+  .field-row label {
+    width: 170px;
+    flex-shrink: 0;
+    font-size: 0.92rem;
+    color: var(--text);
+  }
+
+  .field-row label .unit-abbr {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .field-row input {
+    flex: 1;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    font-size: 1rem;
+    font-family: inherit;
+    color: var(--text);
+    background: #fbfaf7;
+  }
+
+  .field-row input:focus {
+    outline: 2px solid var(--accent-soft);
+    border-color: var(--accent);
+  }
+
+  footer { margin-top: 18px; color: var(--muted); font-size: 0.82rem; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a href="../index.html">&larr; Back to hub</a>
+      <h1>Unit Converter</h1>
+      <p>Convert length, weight, temperature, and volume between common units. Type into any field &mdash; the rest update instantly.</p>
+    </header>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="panel" id="panel"></div>
+
+    <footer>Everything runs client-side with hand-rolled conversion math &mdash; no network calls.</footer>
+  </div>
+
+<script>
+(function () {
+  // Each category stores units as a factor relative to a base unit.
+  // value_in_base = value * factor (for linear categories).
+  const CATEGORIES = {
+    length: {
+      label: 'Length',
+      base: 'meter',
+      units: [
+        { key: 'millimeter', label: 'Millimeter', abbr: 'mm', factor: 0.001 },
+        { key: 'centimeter', label: 'Centimeter', abbr: 'cm', factor: 0.01 },
+        { key: 'meter', label: 'Meter', abbr: 'm', factor: 1 },
+        { key: 'kilometer', label: 'Kilometer', abbr: 'km', factor: 1000 },
+        { key: 'inch', label: 'Inch', abbr: 'in', factor: 0.0254 },
+        { key: 'foot', label: 'Foot', abbr: 'ft', factor: 0.3048 },
+        { key: 'yard', label: 'Yard', abbr: 'yd', factor: 0.9144 },
+        { key: 'mile', label: 'Mile', abbr: 'mi', factor: 1609.344 },
+      ],
+    },
+    weight: {
+      label: 'Weight',
+      base: 'kilogram',
+      units: [
+        { key: 'milligram', label: 'Milligram', abbr: 'mg', factor: 0.000001 },
+        { key: 'gram', label: 'Gram', abbr: 'g', factor: 0.001 },
+        { key: 'kilogram', label: 'Kilogram', abbr: 'kg', factor: 1 },
+        { key: 'tonne', label: 'Metric ton', abbr: 't', factor: 1000 },
+        { key: 'ounce', label: 'Ounce', abbr: 'oz', factor: 0.028349523125 },
+        { key: 'pound', label: 'Pound', abbr: 'lb', factor: 0.45359237 },
+        { key: 'stone', label: 'Stone', abbr: 'st', factor: 6.35029318 },
+      ],
+    },
+    temperature: {
+      label: 'Temperature',
+      units: [
+        { key: 'celsius', label: 'Celsius', abbr: '°C' },
+        { key: 'fahrenheit', label: 'Fahrenheit', abbr: '°F' },
+        { key: 'kelvin', label: 'Kelvin', abbr: 'K' },
+      ],
+    },
+    volume: {
+      label: 'Volume',
+      base: 'liter',
+      units: [
+        { key: 'milliliter', label: 'Milliliter', abbr: 'mL', factor: 0.001 },
+        { key: 'liter', label: 'Liter', abbr: 'L', factor: 1 },
+        { key: 'teaspoon', label: 'Teaspoon (US)', abbr: 'tsp', factor: 0.00492892159375 },
+        { key: 'tablespoon', label: 'Tablespoon (US)', abbr: 'tbsp', factor: 0.01478676478125 },
+        { key: 'fluid_ounce', label: 'Fluid ounce (US)', abbr: 'fl oz', factor: 0.0295735295625 },
+        { key: 'cup', label: 'Cup (US)', abbr: 'cup', factor: 0.2365882365 },
+        { key: 'pint', label: 'Pint (US)', abbr: 'pt', factor: 0.473176473 },
+        { key: 'quart', label: 'Quart (US)', abbr: 'qt', factor: 0.946352946 },
+        { key: 'gallon', label: 'Gallon (US)', abbr: 'gal', factor: 3.785411784 },
+      ],
+    },
+  };
+
+  // Temperature needs formulas, not a shared linear factor.
+  function toCelsius(value, unit) {
+    if (unit === 'celsius') return value;
+    if (unit === 'fahrenheit') return (value - 32) * (5 / 9);
+    if (unit === 'kelvin') return value - 273.15;
+  }
+
+  function fromCelsius(celsius, unit) {
+    if (unit === 'celsius') return celsius;
+    if (unit === 'fahrenheit') return celsius * (9 / 5) + 32;
+    if (unit === 'kelvin') return celsius + 273.15;
+  }
+
+  function formatNumber(n) {
+    if (!isFinite(n)) return '';
+    const rounded = Math.round(n * 1e6) / 1e6;
+    return String(rounded);
+  }
+
+  const tabsEl = document.getElementById('tabs');
+  const panelEl = document.getElementById('panel');
+  let activeCategory = 'length';
+
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    Object.keys(CATEGORIES).forEach((key) => {
+      const btn = document.createElement('button');
+      btn.className = 'tab' + (key === activeCategory ? ' active' : '');
+      btn.textContent = CATEGORIES[key].label;
+      btn.addEventListener('click', () => {
+        activeCategory = key;
+        renderTabs();
+        renderPanel();
+      });
+      tabsEl.appendChild(btn);
+    });
+  }
+
+  function renderPanel() {
+    const category = CATEGORIES[activeCategory];
+    panelEl.innerHTML = '';
+
+    const inputs = {};
+
+    function convertFrom(sourceKey) {
+      const sourceInput = inputs[sourceKey];
+      const raw = sourceInput.value.trim();
+      if (raw === '' || isNaN(Number(raw))) {
+        category.units.forEach((u) => {
+          if (u.key !== sourceKey) inputs[u.key].value = '';
+        });
+        return;
+      }
+      const value = Number(raw);
+
+      if (activeCategory === 'temperature') {
+        const celsius = toCelsius(value, sourceKey);
+        category.units.forEach((u) => {
+          if (u.key === sourceKey) return;
+          inputs[u.key].value = formatNumber(fromCelsius(celsius, u.key));
+        });
+        return;
+      }
+
+      const sourceUnit = category.units.find((u) => u.key === sourceKey);
+      const baseValue = value * sourceUnit.factor;
+      category.units.forEach((u) => {
+        if (u.key === sourceKey) return;
+        inputs[u.key].value = formatNumber(baseValue / u.factor);
+      });
+    }
+
+    category.units.forEach((unit) => {
+      const row = document.createElement('div');
+      row.className = 'field-row';
+
+      const label = document.createElement('label');
+      label.setAttribute('for', 'field-' + unit.key);
+      label.innerHTML = unit.label + ' <span class="unit-abbr">(' + unit.abbr + ')</span>';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      input.id = 'field-' + unit.key;
+      input.placeholder = '0';
+      input.addEventListener('input', () => convertFrom(unit.key));
+
+      row.appendChild(label);
+      row.appendChild(input);
+      panelEl.appendChild(row);
+
+      inputs[unit.key] = input;
+    });
+
+    inputs[category.units[0].key].value = '1';
+    convertFrom(category.units[0].key);
+  }
+
+  renderTabs();
+  renderPanel();
+})();
+</script>
+</body>
+</html>

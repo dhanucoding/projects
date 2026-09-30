@@ -54,11 +54,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Include a live swatch preview and pass/fail badges for AA/AAA text sizes.
    shipped: 2026-09-28
 
-6. status: pending
+6. status: done
    slug: unit-converter
    name: Unit Converter
    one-liner: Convert length, weight, temperature, and volume between common units.
    notes: Static conversion tables, grouped tabs per category, instant two-way conversion as you type.
+   shipped: 2026-09-30
 
 7. status: pending
    slug: base64-url-tool
