@@ -193,8 +193,8 @@
 
   function formatNumber(n) {
     if (!isFinite(n)) return '';
-    const rounded = Math.round(n * 1e6) / 1e6;
-    return String(rounded);
+    // Significant digits, not fixed decimals, so tiny results (1 mg in tonnes) don't round to 0.
+    return String(Number(n.toPrecision(10)));
   }
 
   const tabsEl = document.getElementById('tabs');
