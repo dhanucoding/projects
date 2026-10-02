@@ -5,3 +5,7 @@
 /hello-world
 /.daily-app-logs
 /.aiforce_session.json
+/.aiforce_turn.json
+/.DS_Store
+/.claude/settings.local.json
+/.claude/aiforce-logs/
