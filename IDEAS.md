@@ -61,11 +61,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Static conversion tables, grouped tabs per category, instant two-way conversion as you type.
    shipped: 2026-09-30
 
-7. status: pending
+7. status: done
    slug: base64-url-tool
    name: Base64 / URL Encoder-Decoder
    one-liner: Encode or decode text as Base64 or URI components.
    notes: Two-way live conversion, handle UTF-8 correctly (not just Latin1), copy buttons.
+   shipped: 2026-10-05
 
 8. status: pending
    slug: password-generator
