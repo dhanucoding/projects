@@ -210,7 +210,8 @@
     }
 
     function decodeBase64(str) {
-      const bin = atob(str);
+      // Accept URL-safe Base64 (JWTs, URLs) too; standard Base64 never contains - or _.
+      const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
       const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
       return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     }
