@@ -68,11 +68,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Two-way live conversion, handle UTF-8 correctly (not just Latin1), copy buttons.
    shipped: 2026-10-05
 
-8. status: pending
+8. status: done
    slug: password-generator
    name: Password Generator & Strength Checker
    one-liner: Generate strong random passwords and estimate the strength of a typed one.
    notes: Use crypto.getRandomValues for generation; entropy-based strength meter, no data leaves the browser.
+   shipped: 2026-10-13
 
 9. status: pending
    slug: csv-json-converter

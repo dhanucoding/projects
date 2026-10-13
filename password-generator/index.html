@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Password Generator &amp; Strength Checker</title>
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --panel: #ffffff;
+    --panel-border: rgba(126, 99, 75, 0.16);
+    --text: #2d241e;
+    --muted: #6d625a;
+    --accent: #ba6f3b;
+    --accent-soft: #f2d6bd;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  }
+
+  .shell { max-width: 900px; margin: 0 auto; }
+  header { margin-bottom: 20px; }
+  header a { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+  header a:hover { color: var(--accent); }
+  h1 { margin: 10px 0 4px; font-size: 1.6rem; }
+  header p { color: var(--muted); margin: 0; font-size: 0.92rem; }
+
+  .tabs { display: flex; gap: 8px; margin: 22px 0 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff8f1; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 20px;
+  }
+  .hidden { display: none; }
+
+  .output-row { display: flex; gap: 8px; }
+  .output, .input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    background: #fbf9f6;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 1.05rem;
+    color: var(--text);
+  }
+  .output { word-break: break-all; min-height: 48px; }
+
+  button.btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff8f1; }
+  button.btn:hover { border-color: var(--accent); }
+
+  .controls { margin-top: 20px; display: grid; gap: 14px; }
+  .length-row { display: flex; align-items: center; gap: 12px; }
+  .length-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .length-val { font-weight: 700; min-width: 2ch; text-align: right; }
+  .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  .checks label { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; cursor: pointer; }
+  .checks input { accent-color: var(--accent); }
+
+  .meter { margin-top: 18px; }
+  .meter-bar { height: 10px; border-radius: 999px; background: #eee6dc; overflow: hidden; }
+  .meter-fill { height: 100%; width: 0; border-radius: 999px; transition: width .2s, background .2s; }
+  .meter-text { display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.88rem; color: var(--muted); }
+  .meter-text strong { color: var(--text); }
+
+  .note { margin-top: 14px; font-size: 0.82rem; color: var(--muted); }
+  .msg { color: #b9433f; font-size: 0.88rem; margin-top: 10px; min-height: 1.2em; }
+  ul.tips { margin: 14px 0 0; padding-left: 18px; font-size: 0.88rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <a href="../index.html">← Back to hub</a>
+    <h1>Password Generator &amp; Strength Checker</h1>
+    <p>Generate strong random passwords or estimate the strength of one you type. Nothing leaves your browser.</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="gen">Generate</button>
+    <button class="tab" data-tab="check">Check strength</button>
+  </div>
+
+  <section class="panel" id="tab-gen">
+    <div class="output-row">
+      <div class="output" id="genOut" aria-live="polite"></div>
+      <button class="btn" id="copyBtn">Copy</button>
+      <button class="btn primary" id="regenBtn">Regenerate</button>
+    </div>
+
+    <div class="controls">
+      <div class="length-row">
+        <label for="len">Length</label>
+        <input type="range" id="len" min="8" max="64" value="20">
+        <span class="length-val" id="lenVal">20</span>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="optLower" checked> Lowercase (a–z)</label>
+        <label><input type="checkbox" id="optUpper" checked> Uppercase (A–Z)</label>
+        <label><input type="checkbox" id="optDigits" checked> Digits (0–9)</label>
+        <label><input type="checkbox" id="optSymbols" checked> Symbols (!@#…)</label>
+        <label><input type="checkbox" id="optAmbig"> Exclude look-alikes (O/0, l/1/I)</label>
+      </div>
+    </div>
+    <div class="msg" id="genMsg"></div>
+
+    <div class="meter">
+      <div class="meter-bar"><div class="meter-fill" id="genFill"></div></div>
+      <div class="meter-text"><span id="genLabel"></span><span id="genEntropy"></span></div>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="tab-check">
+    <div class="output-row">
+      <input class="input" id="chkIn" type="password" placeholder="Type or paste a password to test" autocomplete="off" spellcheck="false">
+      <button class="btn" id="showBtn">Show</button>
+    </div>
+    <div class="meter">
+      <div class="meter-bar"><div class="meter-fill" id="chkFill"></div></div>
+      <div class="meter-text"><span id="chkLabel">Enter a password</span><span id="chkEntropy"></span></div>
+    </div>
+    <ul class="tips" id="chkTips"></ul>
+    <p class="note">Estimates are rough, based on character-pool size and length with penalties for common words and patterns. They are not a guarantee. Avoid typing real passwords into any tool you don't trust — this page makes no network calls, but a generated one is safer than testing a live one.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  const SETS = {
+    lower: 'abcdefghijklmnopqrstuvwxyz',
+    upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    digits: '0123456789',
+    symbols: '!@#$%^&*()-_=+[]{};:,.?/~'
+  };
+  const AMBIGUOUS = /[O0oIl1|]/g;
+
+  const $ = id => document.getElementById(id);
+
+  // Uniform random int in [0, max) via rejection sampling (no modulo bias).
+  function randInt(max) {
+    const limit = Math.floor(0x100000000 / max) * max;
+    const buf = new Uint32Array(1);
+    do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+    return buf[0] % max;
+  }
+
+  function currentPools() {
+    const strip = $('optAmbig').checked ? s => s.replace(AMBIGUOUS, '') : s => s;
+    const pools = [];
+    if ($('optLower').checked) pools.push(strip(SETS.lower));
+    if ($('optUpper').checked) pools.push(strip(SETS.upper));
+    if ($('optDigits').checked) pools.push(strip(SETS.digits));
+    if ($('optSymbols').checked) pools.push(strip(SETS.symbols));
+    return pools;
+  }
+
+  function generate() {
+    const pools = currentPools();
+    const len = +$('len').value;
+    if (!pools.length) {
+      $('genMsg').textContent = 'Select at least one character type.';
+      $('genOut').textContent = '';
+      renderMeter('gen', null);
+      return;
+    }
+    $('genMsg').textContent = '';
+    const all = pools.join('');
+    const chars = [];
+    // Guarantee one from each selected pool, fill the rest uniformly, then shuffle.
+    pools.forEach(p => chars.push(p[randInt(p.length)]));
+    while (chars.length < len) chars.push(all[randInt(all.length)]);
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = randInt(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    const pw = chars.slice(0, len).join('');
+    $('genOut').textContent = pw;
+    // Entropy of the generation process itself (pool-uniform), a slight
+    // overestimate because of the one-per-pool guarantee is negligible.
+    renderMeter('gen', { entropy: len * Math.log2(all.length), tips: [] });
+  }
+
+  const COMMON = ['password', 'passw0rd', 'qwerty', 'letmein', 'welcome', 'admin', 'login',
+    'iloveyou', 'monkey', 'dragon', 'football', 'baseball', 'abc123', '123456', 'sunshine',
+    'princess', 'master', 'shadow', 'hello', 'trustno1'];
+
+  function analyze(pw) {
+    if (!pw) return null;
+    let pool = 0;
+    if (/[a-z]/.test(pw)) pool += 26;
+    if (/[A-Z]/.test(pw)) pool += 26;
+    if (/[0-9]/.test(pw)) pool += 10;
+    if (/[^A-Za-z0-9]/.test(pw)) pool += 32;
+    let entropy = pw.length * Math.log2(pool);
+    const tips = [];
+    const lower = pw.toLowerCase();
+
+    if (COMMON.some(w => lower.includes(w))) {
+      entropy = Math.min(entropy, 20);
+      tips.push('Contains a very common password or word.');
+    }
+    if (/(.)\1{2,}/.test(pw)) {
+      entropy *= 0.8;
+      tips.push('Repeated characters (e.g. "aaa") weaken it.');
+    }
+    if (/(?:012|123|234|345|456|567|678|789|abc|bcd|cde|def|qwe|wer|ert|asd|sdf|zxc)/i.test(pw)) {
+      entropy *= 0.8;
+      tips.push('Contains an easy sequence like "123", "abc", or "qwe".');
+    }
+    if (new Set(pw).size < pw.length / 2) {
+      entropy *= 0.8;
+      tips.push('Few unique characters for its length.');
+    }
+    if (pw.length < 12) tips.push('Use at least 12 characters.');
+    if (pool < 62 && pw.length < 20) tips.push('Mix lowercase, uppercase, digits, and symbols.');
+    return { entropy, tips };
+  }
+
+  function rating(bits) {
+    if (bits < 28) return { label: 'Very weak', color: '#b9433f', pct: 12 };
+    if (bits < 36) return { label: 'Weak', color: '#d9803a', pct: 30 };
+    if (bits < 60) return { label: 'Fair', color: '#c9a227', pct: 52 };
+    if (bits < 80) return { label: 'Strong', color: '#6a9f3f', pct: 78 };
+    return { label: 'Very strong', color: '#2f8f5b', pct: 100 };
+  }
+
+  function renderMeter(prefix, result) {
+    const fill = $(prefix + 'Fill'), label = $(prefix + 'Label'), ent = $(prefix + 'Entropy');
+    if (!result) {
+      fill.style.width = '0';
+      label.textContent = prefix === 'chk' ? 'Enter a password' : '';
+      ent.textContent = '';
+      return;
+    }
+    const r = rating(result.entropy);
+    fill.style.width = r.pct + '%';
+    fill.style.background = r.color;
+    label.innerHTML = '<strong>' + r.label + '</strong>';
+    ent.textContent = '≈ ' + Math.round(result.entropy) + ' bits of entropy';
+  }
+
+  function check() {
+    const res = analyze($('chkIn').value);
+    renderMeter('chk', res);
+    const ul = $('chkTips');
+    ul.innerHTML = '';
+    if (res) res.tips.forEach(t => {
+      const li = document.createElement('li');
+      li.textContent = t;
+      ul.appendChild(li);
+    });
+  }
+
+  // Wiring
+  document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+    $('tab-gen').classList.toggle('hidden', btn.dataset.tab !== 'gen');
+    $('tab-check').classList.toggle('hidden', btn.dataset.tab !== 'check');
+  }));
+
+  $('len').addEventListener('input', () => { $('lenVal').textContent = $('len').value; generate(); });
+  ['optLower', 'optUpper', 'optDigits', 'optSymbols', 'optAmbig'].forEach(id => $(id).addEventListener('change', generate));
+  $('regenBtn').addEventListener('click', generate);
+  $('copyBtn').addEventListener('click', () => {
+    const pw = $('genOut').textContent;
+    if (!pw) return;
+    navigator.clipboard.writeText(pw).then(() => {
+      $('copyBtn').textContent = 'Copied!';
+      setTimeout(() => { $('copyBtn').textContent = 'Copy'; }, 1200);
+    });
+  });
+  $('chkIn').addEventListener('input', check);
+  $('showBtn').addEventListener('click', () => {
+    const show = $('chkIn').type === 'password';
+    $('chkIn').type = show ? 'text' : 'password';
+    $('showBtn').textContent = show ? 'Hide' : 'Show';
+  });
+
+  generate();
+})();
+</script>
+</body>
+</html>
