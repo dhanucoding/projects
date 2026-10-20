@@ -5,6 +5,7 @@ and `IDEAS.md`). Newest first.
 
 | Date | App | Folder | PR |
 |------|-----|--------|----|
+| 2026-10-20 | Timestamp / Epoch Converter | `timestamp-converter/` | branch: `daily-app/timestamp-converter-2026-10-20` |
 | 2026-10-13 | Password Generator & Strength Checker | `password-generator/` | branch: `daily-app/password-generator-2026-10-13` |
 | 2026-10-05 | Base64 / URL Encoder-Decoder | `base64-url-tool/` | branch: `daily-app/base64-url-tool-2026-10-05` |
 | 2026-09-30 | Unit Converter | `unit-converter/` | branch: `daily-app/unit-converter-2026-09-30` |
