@@ -87,11 +87,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
     one-liner: Convert between Unix epoch, ISO 8601, and human-readable local/UTC time.
     notes: Live "current time" ticker, batch conversion of multiple pasted timestamps.
 
-11. status: pending
+11. status: done
     slug: uuid-generator
     name: UUID Generator
     one-liner: Generate v4 (random) and v7 (time-ordered) UUIDs in bulk.
     notes: crypto.getRandomValues-based; adjustable batch count; copy-all button.
+    shipped: 2026-10-21 (branch app/uuid-generator)
 
 12. status: pending
     slug: text-case-converter

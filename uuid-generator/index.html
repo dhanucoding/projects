@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UUID Generator</title>
+<style>
+  :root { --bg:#f6f1ea; --card:#fffdf9; --ink:#2b2622; --muted:#7a6f64; --accent:#c4562b; --line:#e4dacd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .row { display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
+  label { font-size: .9rem; display:inline-flex; gap:6px; align-items:center; }
+  input[type=number], select { padding:6px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
+  input[type=number] { width: 90px; }
+  button { padding:8px 14px; border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:8px; font:inherit; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--accent); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  textarea { width:100%; min-height: 260px; padding:10px; border:1px solid var(--line); border-radius:8px; font: .9rem ui-monospace, Menlo, Consolas, monospace; resize: vertical; background:#fff; color:var(--ink); }
+  .status { color: var(--muted); font-size:.85rem; min-height:1.2em; margin-top:8px; }
+  .hint { color: var(--muted); font-size:.82rem; margin-top:6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>UUID Generator</h1>
+  <p class="sub">Generate v4 (random) and v7 (time-ordered) UUIDs in bulk. Everything runs in your browser.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label>Version
+        <select id="version">
+          <option value="4">v4 (random)</option>
+          <option value="7">v7 (time-ordered)</option>
+        </select>
+      </label>
+      <label>Count <input id="count" type="number" min="1" max="1000" value="10"></label>
+      <label><input id="upper" type="checkbox"> Uppercase</label>
+      <label><input id="hyphens" type="checkbox" checked> Hyphens</label>
+      <label><input id="braces" type="checkbox"> Braces</label>
+    </div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="margin-bottom:10px">
+      <button id="gen">Generate</button>
+      <button id="copy" class="secondary">Copy all</button>
+    </div>
+    <textarea id="out" readonly aria-label="Generated UUIDs"></textarea>
+    <div class="status" id="status" role="status"></div>
+  </div>
+</main>
+
+<script>
+// ---- core (tested by test.js; keep free of DOM access) ----
+// CORE-START
+var MAX_COUNT = 1000;
+
+function randomBytes(n) {
+  var b = new Uint8Array(n);
+  globalThis.crypto.getRandomValues(b);
+  return b;
+}
+
+function bytesToUuid(b) {
+  var h = '';
+  for (var i = 0; i < 16; i++) h += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+  return h.slice(0,8) + '-' + h.slice(8,12) + '-' + h.slice(12,16) + '-' + h.slice(16,20) + '-' + h.slice(20);
+}
+
+function uuidV4() {
+  var b = randomBytes(16);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  return bytesToUuid(b);
+}
+
+// v7: 48-bit unix ms timestamp, 12-bit rand_a used as a counter so UUIDs created
+// in the same millisecond still sort in generation order.
+var v7State = { ms: -1, seq: 0 };
+function uuidV7(nowMs) {
+  var ms = nowMs === undefined ? Date.now() : nowMs;
+  var b = randomBytes(16);
+  if (ms > v7State.ms) {
+    v7State.ms = ms;
+    v7State.seq = ((b[6] << 8) | b[7]) & 0x7ff; // start below max so the counter has headroom
+  } else {
+    ms = v7State.ms;
+    v7State.seq++;
+    if (v7State.seq > 0xfff) { v7State.ms++; ms = v7State.ms; v7State.seq = 0; }
+  }
+  var seq = v7State.seq;
+  // ms as 48-bit big-endian (Math ops: avoid 32-bit bitwise truncation)
+  var hi = Math.floor(ms / 0x10000), lo = ms % 0x10000;
+  b[0] = (hi / 0x1000000) & 0xff; b[1] = (hi >>> 16) & 0xff; b[2] = (hi >>> 8) & 0xff; b[3] = hi & 0xff;
+  b[4] = (lo >>> 8) & 0xff; b[5] = lo & 0xff;
+  b[6] = 0x70 | ((seq >>> 8) & 0x0f);
+  b[7] = seq & 0xff;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  return bytesToUuid(b);
+}
+
+function clampCount(v) {
+  var n = parseInt(v, 10);
+  if (!isFinite(n) || n < 1) return 1;
+  return n > MAX_COUNT ? MAX_COUNT : n;
+}
+
+function formatUuid(u, opts) {
+  if (opts.hyphens === false) u = u.replace(/-/g, '');
+  if (opts.upper) u = u.toUpperCase();
+  if (opts.braces) u = '{' + u + '}';
+  return u;
+}
+
+function generate(version, count, opts) {
+  var n = clampCount(count), out = [];
+  for (var i = 0; i < n; i++) {
+    out.push(formatUuid(String(version) === '7' ? uuidV7() : uuidV4(), opts || {}));
+  }
+  return out;
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var hints = {
+    '4': 'v4: 122 random bits from crypto.getRandomValues.',
+    '7': 'v7: 48-bit millisecond timestamp + random bits; sorts by creation time.'
+  };
+  var run = function () {
+    var n = clampCount($('count').value);
+    $('count').value = n;
+    $('hint').textContent = hints[$('version').value];
+    $('out').value = generate($('version').value, n, {
+      upper: $('upper').checked, hyphens: $('hyphens').checked, braces: $('braces').checked
+    }).join('\n');
+    $('status').textContent = n + ' generated.';
+  };
+  $('gen').addEventListener('click', run);
+  ['version', 'upper', 'hyphens', 'braces'].forEach(function (id) { $(id).addEventListener('change', run); });
+  $('count').addEventListener('change', run);
+  $('copy').addEventListener('click', function () {
+    var text = $('out').value;
+    if (!text) { $('status').textContent = 'Nothing to copy.'; return; }
+    var done = function () { $('status').textContent = 'Copied.'; };
+    var fallback = function () { $('out').select(); document.execCommand('copy'); done(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  });
+  run();
+}
+</script>
+</body>
+</html>
