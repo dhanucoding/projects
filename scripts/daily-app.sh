@@ -35,9 +35,9 @@ whatever `date +%Y-%m-%d` returns in this shell.
    algorithm needed). Follow the idea's "notes" field for scope, but keep it
    simple and genuinely useful — do not over-build.
 7. Write `<slug>/README.md` using the template in CONVENTIONS.md.
-8. Add one new card to the `.grid` in the root `index.html`, matching the
-   existing card markup exactly. Don't change anything else about the hub
-   page.
+8. Add one new entry to the `APPS` array in the root `index.html` script,
+   following the "Adding an app to the hub" section of CONVENTIONS.md (pick
+   an existing category). Don't change anything else about the hub page.
 9. In IDEAS.md, flip that idea's `status` to `done` and add
    `shipped: <today>`.
 10. Add one row to the top of the table in DAILY_LOG.md: date, app name,

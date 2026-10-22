@@ -89,131 +89,120 @@
     line-height: 1.7;
   }
 
-  .section-head {
+  .toolbar {
     display: flex;
-    align-items: end;
+    align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin: 30px 4px 18px;
+    margin: 28px 4px 8px;
   }
 
-  .section-head h2 {
-    font-size: 1.2rem;
-    letter-spacing: 0.02em;
-  }
+  .toolbar h2 { font-size: 1.2rem; letter-spacing: 0.02em; }
+  .toolbar p { color: var(--muted); font-size: 0.92rem; }
 
-  .section-head p {
-    color: var(--muted);
+  .search {
+    width: min(320px, 100%);
+    padding: 10px 16px;
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--text);
+    font: inherit;
     font-size: 0.92rem;
   }
 
+  .search:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .category { margin-top: 26px; }
+
+  .category h3 {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0 4px 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .category h3 span { color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+
   .grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
   }
 
   .card {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    min-height: 220px;
-    padding: 22px;
+    gap: 8px;
+    padding: 18px;
     text-decoration: none;
     color: inherit;
-    border-radius: 24px;
+    border-radius: 20px;
     border: 1px solid var(--panel-border);
     background: rgba(255, 255, 255, 0.84);
-    box-shadow: 0 14px 34px rgba(77, 53, 36, 0.08);
+    box-shadow: 0 10px 26px rgba(77, 53, 36, 0.07);
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
 
-  .card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(77, 53, 36, 0.14);
+  .card:hover, .card:focus-visible {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: 0 16px 34px rgba(77, 53, 36, 0.13);
+    outline: none;
   }
 
-  .card-primary { border-color: var(--purple); }
-  .card-secondary { border-color: var(--blue); }
-  .card-placeholder { border-style: dashed; background: rgba(255, 255, 255, 0.55); }
-
-  .tag {
-    align-self: flex-start;
-    padding: 5px 10px;
-    border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+  .card-featured {
+    grid-column: span 2;
+    border-color: var(--purple);
+    background: linear-gradient(135deg, rgba(243, 231, 255, 0.7), rgba(255, 255, 255, 0.9));
   }
 
-  .tag-live { background: #f3e7ff; color: #715394; }
-  .tag-alt { background: #e6f3ff; color: #245e93; }
-  .tag-soon { background: #eef2f5; color: #5f6673; }
-
-  .card h3 {
-    font-size: 1.28rem;
-    line-height: 1.15;
-  }
-
-  .card p {
-    color: var(--muted);
-    line-height: 1.65;
-    font-size: 0.95rem;
-  }
-
-  .meta {
-    margin-top: auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    font-size: 0.84rem;
-    color: #7d7268;
-  }
-
-  .arrow {
+  .icon {
     display: inline-flex;
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background: #fff8f1;
-    color: var(--accent);
-    font-size: 1rem;
-    font-weight: 700;
+    border-radius: 12px;
+    background: #fff4ea;
+    font-size: 1.25rem;
   }
 
-  .footer-note {
-    margin-top: 22px;
-    padding: 18px 20px;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.68);
-    border: 1px solid var(--panel-border);
+  .card h4 { font-size: 1.05rem; line-height: 1.2; }
+
+  .card p {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
     color: var(--muted);
-    font-size: 0.92rem;
-    line-height: 1.6;
+    font-size: 0.88rem;
+    line-height: 1.5;
   }
 
-  code {
-    padding: 2px 6px;
-    border-radius: 6px;
-    background: #f5eee7;
-    color: #6b4a36;
-    font-family: "SFMono-Regular", Consolas, monospace;
-    font-size: 0.88em;
+  .empty { margin: 28px 4px; color: var(--muted); }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 760px) {
     .grid { grid-template-columns: 1fr 1fr; }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 520px) {
     body { padding: 18px; }
     .hero { padding: 24px; border-radius: 22px; }
     .grid { grid-template-columns: 1fr; }
-    .section-head { flex-direction: column; align-items: flex-start; }
+    .card-featured { grid-column: auto; }
+    .toolbar { flex-direction: column; align-items: flex-start; }
   }
 </style>
 </head>
@@ -223,156 +212,99 @@
       <span class="eyebrow">Projects Hub</span>
       <h1>Small apps, one clean entry point.</h1>
       <p class="intro">
-        This page is the front door for browser-based projects in this repository. Start with the main Kanban app below, and add more tools here as the repo grows.
+        Browser-based tools and boards that run entirely on your device. Pick one below, or search to jump straight to it.
       </p>
     </section>
 
-    <section>
-      <div class="section-head">
-        <div>
-          <h2>Available Apps</h2>
-          <p>Published directly from GitHub Pages.</p>
-        </div>
+    <div class="toolbar">
+      <div>
+        <h2>Available Apps</h2>
+        <p id="count">Published directly from GitHub Pages.</p>
       </div>
-
-      <div class="grid">
-        <a class="card card-primary" href="./kanban/index.html">
-          <span class="tag tag-live">Main App</span>
-          <h3>Kanban Board</h3>
-          <p>
-            The primary version of your board. Uses IndexedDB for more reliable browser storage and loads directly from the <code>/kanban/</code> folder URL.
-          </p>
-          <div class="meta">
-            <span>Persistent local data</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./kanban/kanban-local.html">
-          <span class="tag tag-alt">Alternate</span>
-          <h3>Kanban Local</h3>
-          <p>
-            A simpler localStorage-based version of the same board. Useful as a lightweight fallback or for comparing behavior between storage modes.
-          </p>
-          <div class="meta">
-            <span>Simple browser storage</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./jsonFormatter/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>JSON Formatter</h3>
-          <p>
-            Format, inspect, and work with JSON in a focused browser-based utility.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./markdown-previewer/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>Markdown Previewer</h3>
-          <p>
-            Paste Markdown, see a live-rendered preview and copy the generated HTML.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./regex-tester/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>Regex Tester</h3>
-          <p>
-            Test a regex against sample text with live match highlighting and group breakdown.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./diff-checker/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>Text Diff Checker</h3>
-          <p>
-            Compare two blocks of text and highlight line- and word-level differences.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./color-tools/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>Color Converter & Contrast Checker</h3>
-          <p>
-            Convert between HEX/RGB/HSL and check WCAG contrast ratios for a foreground/background pair.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./unit-converter/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>Unit Converter</h3>
-          <p>
-            Convert length, weight, temperature, and volume between common units.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./base64-url-tool/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>Base64 / URL Encoder-Decoder</h3>
-          <p>
-            Encode or decode text as Base64 or URI components.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./password-generator/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>Password Generator &amp; Strength Checker</h3>
-          <p>
-            Generate strong random passwords and estimate the strength of a typed one.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-
-        <a class="card card-secondary" href="./uuid-generator/index.html">
-          <span class="tag tag-alt">Tool</span>
-          <h3>UUID Generator</h3>
-          <p>
-            Generate v4 (random) and v7 (time-ordered) UUIDs in bulk.
-          </p>
-          <div class="meta">
-            <span>Developer utility</span>
-            <span class="arrow">→</span>
-          </div>
-        </a>
-      </div>
-    </section>
-
-    <div class="footer-note">
-      Suggested structure: keep each browser app in its own folder with an <code>index.html</code> entry point. That keeps links stable and makes GitHub Pages navigation straightforward.
+      <input id="search" class="search" type="search" placeholder="Search apps…" aria-label="Search apps" autocomplete="off">
     </div>
+
+    <div id="apps"></div>
+    <p id="empty" class="empty" hidden>No apps match your search.</p>
+    <noscript><p class="empty">This page needs JavaScript to list the apps.</p></noscript>
   </main>
+
+<script>
+// To add an app: append one entry to APPS (keep entries grouped by category).
+// Categories render in CATEGORIES order; an app whose cat isn't listed there is not shown.
+var CATEGORIES = ['Boards', 'Text & Code', 'Converters', 'Generators'];
+var APPS = [
+  { cat: 'Boards', icon: '🗂️', title: 'Kanban Board', featured: true, href: './kanban/index.html',
+    desc: 'The primary board. Uses IndexedDB for reliable, persistent local storage.' },
+  { cat: 'Boards', icon: '📋', title: 'Kanban Local', href: './kanban/kanban-local.html',
+    desc: 'A simpler localStorage-based version of the same board.' },
+
+  { cat: 'Text & Code', icon: '{ }', title: 'JSON Formatter', href: './jsonFormatter/index.html',
+    desc: 'Format, inspect, and work with JSON in a focused utility.' },
+  { cat: 'Text & Code', icon: '📝', title: 'Markdown Previewer', href: './markdown-previewer/index.html',
+    desc: 'Paste Markdown, see a live-rendered preview and copy the generated HTML.' },
+  { cat: 'Text & Code', icon: '.*', title: 'Regex Tester', href: './regex-tester/index.html',
+    desc: 'Test a regex against sample text with live match highlighting and group breakdown.' },
+  { cat: 'Text & Code', icon: '±', title: 'Text Diff Checker', href: './diff-checker/index.html',
+    desc: 'Compare two blocks of text and highlight line- and word-level differences.' },
+  { cat: 'Text & Code', icon: '🔤', title: 'Base64 / URL Encoder-Decoder', href: './base64-url-tool/index.html',
+    desc: 'Encode or decode text as Base64 or URI components.' },
+
+  { cat: 'Converters', icon: '🎨', title: 'Color Converter & Contrast Checker', href: './color-tools/index.html',
+    desc: 'Convert between HEX/RGB/HSL and check WCAG contrast ratios for a foreground/background pair.' },
+  { cat: 'Converters', icon: '📏', title: 'Unit Converter', href: './unit-converter/index.html',
+    desc: 'Convert length, weight, temperature, and volume between common units.' },
+
+  { cat: 'Generators', icon: '🔐', title: 'Password Generator & Strength Checker', href: './password-generator/index.html',
+    desc: 'Generate strong random passwords and estimate the strength of a typed one.' },
+  { cat: 'Generators', icon: '🆔', title: 'UUID Generator', href: './uuid-generator/index.html',
+    desc: 'Generate v4 (random) and v7 (time-ordered) UUIDs in bulk.' }
+];
+
+function el(tag, cls, text) {
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+function cardFor(app) {
+  var a = el('a', 'card' + (app.featured ? ' card-featured' : ''));
+  a.href = app.href;
+  a.appendChild(el('span', 'icon', app.icon));
+  a.appendChild(el('h4', '', app.title));
+  a.appendChild(el('p', '', app.desc));
+  return a;
+}
+
+function render(query) {
+  var q = (query || '').trim().toLowerCase();
+  var root = document.getElementById('apps');
+  root.textContent = '';
+  var total = 0;
+  CATEGORIES.forEach(function (cat) {
+    var matches = APPS.filter(function (app) {
+      return app.cat === cat && (!q || (app.title + ' ' + app.desc).toLowerCase().indexOf(q) !== -1);
+    });
+    if (!matches.length) return;
+    total += matches.length;
+    var section = el('section', 'category');
+    var h = el('h3', '', cat);
+    h.appendChild(el('span', '', String(matches.length)));
+    section.appendChild(h);
+    var grid = el('div', 'grid');
+    matches.forEach(function (app) { grid.appendChild(cardFor(app)); });
+    section.appendChild(grid);
+    root.appendChild(section);
+  });
+  document.getElementById('empty').hidden = total !== 0;
+  document.getElementById('count').textContent = q
+    ? total + ' of ' + APPS.length + ' apps'
+    : APPS.length + ' apps, published directly from GitHub Pages.';
+}
+
+document.getElementById('search').addEventListener('input', function (e) { render(e.target.value); });
+render('');
+</script>
 </body>
 </html>
