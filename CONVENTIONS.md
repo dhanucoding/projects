@@ -32,10 +32,15 @@ pattern so every new app (hand-written or auto-generated) stays consistent.
 
 ## Adding an app to the hub
 
-Add one `<a class="card ...">` entry to the `.grid` in root `index.html`,
-following the existing markup: a `tag` (`tag-live` / `tag-alt` / `tag-soon`),
-an `<h3>` title, a one-sentence `<p>` description, and a `.meta` row. Use
-`card-secondary` for new tools unless told otherwise.
+The root `index.html` renders its cards from the `APPS` array in its inline
+script. Add one entry — `{ cat, icon, title, href, desc }` — next to the other
+apps in the same category. `cat` must be one of the names in `CATEGORIES`
+(add a new name there if no category fits). Keep `desc` to one sentence; the
+card clamps it to two lines. Don't hand-write card HTML.
+
+Hub layout notes: apps are grouped by category, filtered by the search box,
+and `featured: true` makes a card span two columns (used for Kanban only).
+The hub is a single-file page; it needs JavaScript to list the apps.
 
 ## Per-app README.md template
 
@@ -66,7 +71,7 @@ Code headlessly to ship exactly one new app:
 
 1. Read `IDEAS.md`, take the first entry with `status: pending`.
 2. Scaffold `<slug>/index.html` + `<slug>/README.md` per the conventions above.
-3. Add a hub card for it in root `index.html`.
+3. Add a hub entry for it to the `APPS` array in root `index.html`.
 4. Flip that idea's `status` to `done` in `IDEAS.md` and record the ship date.
 5. Log the shipped app in `DAILY_LOG.md`.
 6. Commit everything on a new local branch (`daily-app/<slug>-<date>`). It
