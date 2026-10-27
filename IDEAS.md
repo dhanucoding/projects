@@ -75,11 +75,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Use crypto.getRandomValues for generation; entropy-based strength meter, no data leaves the browser.
    shipped: 2026-10-13
 
-9. status: pending
+9. status: done
    slug: csv-json-converter
    name: CSV ⇄ JSON Converter
    one-liner: Convert CSV to JSON and back, with header detection and type inference.
    notes: Handle quoted fields/commas correctly; pretty-print JSON output; download button for the result.
+   shipped: 2026-10-19
 
 10. status: pending
     slug: timestamp-converter

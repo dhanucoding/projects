@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV ⇄ JSON Converter</title>
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --panel: #ffffff;
+    --panel-border: rgba(126, 99, 75, 0.16);
+    --text: #2d241e;
+    --muted: #6d625a;
+    --accent: #ba6f3b;
+    --error: #b9433f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 28px;
+    background: var(--bg); color: var(--text);
+    font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  }
+  .shell { max-width: 1000px; margin: 0 auto; }
+  header { margin-bottom: 20px; }
+  header a { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+  header a:hover { color: var(--accent); }
+  h1 { margin: 10px 0 4px; font-size: 1.6rem; }
+  header p { color: var(--muted); margin: 0; font-size: 0.92rem; }
+
+  .tabs { display: flex; gap: 8px; margin: 22px 0 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 9px 16px; border-radius: 999px; border: 1px solid var(--panel-border);
+    background: var(--panel); color: var(--muted); font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff8f1; }
+
+  .options {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.9rem;
+  }
+  .options label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .options input { accent-color: var(--accent); }
+  .options select {
+    padding: 4px 8px; border-radius: 8px; border: 1px solid var(--panel-border);
+    background: #fbf9f6; color: var(--text);
+  }
+
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .panes { grid-template-columns: 1fr; } }
+  .pane {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; padding: 14px; display: flex; flex-direction: column;
+  }
+  .pane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .pane-head h2 { margin: 0; font-size: 0.95rem; }
+  .pane-actions { display: flex; gap: 6px; }
+  button.btn {
+    padding: 6px 12px; border-radius: 8px; border: 1px solid var(--panel-border);
+    background: var(--panel); color: var(--text); font-weight: 600; font-size: 0.82rem; cursor: pointer;
+  }
+  button.btn:hover { border-color: var(--accent); }
+  textarea {
+    flex: 1; min-height: 340px; width: 100%; resize: vertical;
+    padding: 12px; border: 1px solid var(--panel-border); border-radius: 10px;
+    background: #fbf9f6; color: var(--text);
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; line-height: 1.45;
+  }
+  .status { margin-top: 10px; font-size: 0.85rem; min-height: 1.2em; color: var(--muted); }
+  .status.error { color: var(--error); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <a href="../index.html">← Back to hub</a>
+    <h1>CSV ⇄ JSON Converter</h1>
+    <p>Convert CSV to JSON and back, with header detection and type inference. Runs entirely in your browser.</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-mode="c2j">CSV → JSON</button>
+    <button class="tab" data-mode="j2c">JSON → CSV</button>
+  </div>
+
+  <div class="options" id="opts-c2j">
+    <label>Delimiter
+      <select id="delim">
+        <option value=",">Comma (,)</option>
+        <option value=";">Semicolon (;)</option>
+        <option value="&#9;">Tab</option>
+        <option value="|">Pipe (|)</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="hasHeader" checked> First row is header</label>
+    <label><input type="checkbox" id="infer" checked> Infer types (numbers, booleans, null)</label>
+    <label><input type="checkbox" id="pretty" checked> Pretty-print</label>
+  </div>
+  <div class="options" id="opts-j2c" style="display:none">
+    <label>Delimiter
+      <select id="delim2">
+        <option value=",">Comma (,)</option>
+        <option value=";">Semicolon (;)</option>
+        <option value="&#9;">Tab</option>
+        <option value="|">Pipe (|)</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="flatten" checked> Flatten nested objects (a.b)</label>
+  </div>
+
+  <div class="panes">
+    <div class="pane">
+      <div class="pane-head"><h2 id="inTitle">CSV input</h2>
+        <div class="pane-actions"><button class="btn" id="sampleBtn">Sample</button><button class="btn" id="clearBtn">Clear</button></div>
+      </div>
+      <textarea id="input" spellcheck="false"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head"><h2 id="outTitle">JSON output</h2>
+        <div class="pane-actions"><button class="btn" id="copyBtn">Copy</button><button class="btn" id="dlBtn">Download</button></div>
+      </div>
+      <textarea id="output" spellcheck="false" readonly></textarea>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  let mode = 'c2j';
+
+  const SAMPLE_CSV = 'name,age,city,active,notes\nAda Lovelace,36,London,true,"Wrote the first program, allegedly"\nAlan Turing,41,"Wilmslow, UK",false,"Said ""machines can think"""\nGrace Hopper,85,New York,true,';
+  const SAMPLE_JSON = '[\n  {"name": "Ada", "age": 36, "address": {"city": "London"}, "tags": ["math", "code"]},\n  {"name": "Alan", "age": 41, "address": {"city": "Wilmslow"}, "active": true}\n]';
+
+  // RFC 4180-style parser: quoted fields, escaped "" quotes, embedded delimiters/newlines.
+  function parseCSV(text, delim) {
+    const rows = [];
+    let row = [], field = '', inQuotes = false, i = 0;
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    while (i < text.length) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+      if (c === '"' && field === '') { inQuotes = true; i++; continue; }
+      if (c === delim) { row.push(field); field = ''; i++; continue; }
+      if (c === '\r' || c === '\n') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = ''; i++; continue;
+      }
+      field += c; i++;
+    }
+    if (inQuotes) throw new Error('Unterminated quoted field.');
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => !(r.length === 1 && r[0] === ''));
+  }
+
+  function inferType(v) {
+    const t = v.trim();
+    if (t === '') return null;
+    if (/^(true|false)$/i.test(t)) return t.toLowerCase() === 'true';
+    if (/^null$/i.test(t)) return null;
+    // Plain decimal numbers only; leading zeros (e.g. zip codes, "007") stay strings.
+    if (/^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/.test(t)) {
+      const n = Number(t);
+      if (Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n))) return n;
+    }
+    return v;
+  }
+
+  function csvToJson() {
+    const rows = parseCSV($('input').value, $('delim').value);
+    if (!rows.length) return { text: '', info: '' };
+    const conv = $('infer').checked ? inferType : v => v;
+    let headers, body;
+    if ($('hasHeader').checked) {
+      headers = rows[0].map(h => h.trim());
+      body = rows.slice(1);
+    } else {
+      const width = Math.max(...rows.map(r => r.length));
+      headers = Array.from({ length: width }, (_, i) => 'column' + (i + 1));
+      body = rows;
+    }
+    // De-duplicate header names so no column is silently overwritten.
+    const seen = {};
+    headers = headers.map((h, i) => {
+      h = h || 'column' + (i + 1);
+      seen[h] = (seen[h] || 0) + 1;
+      return seen[h] > 1 ? h + '_' + seen[h] : h;
+    });
+    let ragged = 0;
+    const data = body.map(r => {
+      if (r.length !== headers.length) ragged++;
+      const o = {};
+      headers.forEach((h, i) => { o[h] = i < r.length ? conv(r[i]) : null; });
+      return o;
+    });
+    const extra = body.some(r => r.length > headers.length);
+    let info = data.length + ' record(s), ' + headers.length + ' column(s).';
+    if (ragged) info += ' ' + ragged + ' row(s) had a different column count' + (extra ? ' (extra cells were dropped)' : ' (missing cells set to null)') + '.';
+    return { text: JSON.stringify(data, null, $('pretty').checked ? 2 : 0), info };
+  }
+
+  function flattenObj(o, prefix, out) {
+    for (const k of Object.keys(o)) {
+      const key = prefix ? prefix + '.' + k : k;
+      const v = o[k];
+      if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length) flattenObj(v, key, out);
+      else out[key] = v;
+    }
+    return out;
+  }
+
+  function csvCell(v, delim) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') v = JSON.stringify(v);
+    v = String(v);
+    // Quote only when needed so output round-trips exactly.
+    return /["\r\n]/.test(v) || v.includes(delim) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }
+
+  function jsonToCsv() {
+    const src = $('input').value.trim();
+    if (!src) return { text: '', info: '' };
+    let data = JSON.parse(src);
+    if (!Array.isArray(data)) data = [data];
+    if (data.some(d => d === null || typeof d !== 'object' || Array.isArray(d))) {
+      throw new Error('Expected an array of objects, e.g. [{"a":1},{"a":2}].');
+    }
+    const delim = $('delim2').value;
+    const rows = data.map(d => $('flatten').checked ? flattenObj(d, '', {}) : d);
+    const cols = [];
+    rows.forEach(r => Object.keys(r).forEach(k => { if (!cols.includes(k)) cols.push(k); }));
+    const lines = [cols.map(c => csvCell(c, delim)).join(delim)];
+    rows.forEach(r => lines.push(cols.map(c => csvCell(r[c], delim)).join(delim)));
+    return { text: lines.join('\n'), info: rows.length + ' row(s), ' + cols.length + ' column(s).' };
+  }
+
+  function run() {
+    const st = $('status');
+    try {
+      const r = mode === 'c2j' ? csvToJson() : jsonToCsv();
+      $('output').value = r.text;
+      st.textContent = r.info;
+      st.className = 'status';
+    } catch (e) {
+      $('output').value = '';
+      st.textContent = 'Error: ' + e.message;
+      st.className = 'status error';
+    }
+  }
+
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+    $('opts-c2j').style.display = m === 'c2j' ? '' : 'none';
+    $('opts-j2c').style.display = m === 'j2c' ? '' : 'none';
+    $('inTitle').textContent = m === 'c2j' ? 'CSV input' : 'JSON input';
+    $('outTitle').textContent = m === 'c2j' ? 'JSON output' : 'CSV output';
+    $('input').value = m === 'c2j' ? SAMPLE_CSV : SAMPLE_JSON;
+    run();
+  }
+
+  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  ['input', 'delim', 'delim2', 'hasHeader', 'infer', 'pretty', 'flatten'].forEach(id => {
+    $(id).addEventListener(id === 'input' ? 'input' : 'change', run);
+  });
+  $('sampleBtn').addEventListener('click', () => { $('input').value = mode === 'c2j' ? SAMPLE_CSV : SAMPLE_JSON; run(); });
+  $('clearBtn').addEventListener('click', () => { $('input').value = ''; run(); });
+  $('copyBtn').addEventListener('click', () => {
+    if (!$('output').value) return;
+    navigator.clipboard.writeText($('output').value).then(() => {
+      $('copyBtn').textContent = 'Copied!';
+      setTimeout(() => { $('copyBtn').textContent = 'Copy'; }, 1200);
+    });
+  });
+  $('dlBtn').addEventListener('click', () => {
+    const text = $('output').value;
+    if (!text) return;
+    const isJson = mode === 'c2j';
+    const blob = new Blob([text], { type: isJson ? 'application/json' : 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = isJson ? 'converted.json' : 'converted.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  setMode('c2j');
+})();
+</script>
+</body>
+</html>
