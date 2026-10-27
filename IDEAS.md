@@ -94,11 +94,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
     notes: crypto.getRandomValues-based; adjustable batch count; copy-all button.
     shipped: 2026-10-21 (branch app/uuid-generator)
 
-12. status: pending
+12. status: done
     slug: text-case-converter
     name: Text Case Converter
     one-liner: Convert text between camelCase, snake_case, kebab-case, Title Case, and CONSTANT_CASE.
     notes: Word-boundary tokenizer that handles mixed input case; live preview of all formats at once.
+    shipped: 2026-10-27 (branch app/text-case-converter)
 
 13. status: pending
     slug: jwt-decoder
