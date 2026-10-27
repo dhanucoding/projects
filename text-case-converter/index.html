@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text Case Converter</title>
+<style>
+  :root { --bg:#f6f1ea; --card:#fffdf9; --ink:#2b2622; --muted:#7a6f64; --accent:#c4562b; --line:#e4dacd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  textarea { width:100%; min-height: 110px; padding:10px; border:1px solid var(--line); border-radius:8px; font: .95rem ui-monospace, Menlo, Consolas, monospace; resize: vertical; background:#fff; color:var(--ink); }
+  button { padding:6px 12px; border:1px solid var(--accent); background:transparent; color:var(--accent); border-radius:8px; font:inherit; font-size:.85rem; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; }
+  button:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .result { display:grid; grid-template-columns: 110px 1fr auto; gap:10px; align-items:start; padding:10px 0; border-top:1px solid var(--line); }
+  .result:first-child { border-top:0; }
+  .name { color:var(--muted); font-size:.85rem; padding-top:6px; }
+  .value { font: .95rem ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; padding-top:4px; min-height:1.4em; }
+  .status { color: var(--muted); font-size:.85rem; min-height:1.2em; margin-top:8px; }
+  .hint { color: var(--muted); font-size:.82rem; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Text Case Converter</h1>
+  <p class="sub">Convert text between camelCase, snake_case, kebab-case, Title Case, and more. Everything runs in your browser.</p>
+
+  <div class="panel">
+    <textarea id="input" aria-label="Text to convert" placeholder="Type or paste text, e.g. parseHTTPResponse, user_first_name, or Hello World">parseHTTPResponse for my_user-id</textarea>
+    <div class="hint">Words are split on spaces, punctuation, underscores, hyphens, and camelCase boundaries. Each line is converted separately.</div>
+  </div>
+
+  <div class="panel" id="results" aria-live="polite"></div>
+  <div class="status" id="status" role="status"></div>
+</main>
+
+<script>
+// ---- core (tested by test.js; keep free of DOM access) ----
+// CORE-START
+// Split one line into words. Apostrophes are dropped inside words (don't -> dont);
+// digits stay attached to the letters beside them (utf8Decode -> utf8, Decode).
+function tokenize(line) {
+  var s = String(line == null ? '' : line)
+    .replace(/['’]/g, '')
+    .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, '$1 $2')
+    .replace(/(\p{Lu})(\p{Lu}\p{Ll})/gu, '$1 $2');
+  return s.split(/[^\p{L}\p{N}\p{M}]+/u).filter(Boolean);
+}
+
+function capitalize(word) {
+  var chars = Array.from(word.toLowerCase());
+  if (!chars.length) return '';
+  chars[0] = chars[0].toUpperCase();
+  return chars.join('');
+}
+
+var FORMATS = [
+  { id: 'camel',    name: 'camelCase',     fn: function (w) { return w.map(function (x, i) { return i ? capitalize(x) : x.toLowerCase(); }).join(''); } },
+  { id: 'pascal',   name: 'PascalCase',    fn: function (w) { return w.map(capitalize).join(''); } },
+  { id: 'snake',    name: 'snake_case',    fn: function (w) { return w.join('_').toLowerCase(); } },
+  { id: 'kebab',    name: 'kebab-case',    fn: function (w) { return w.join('-').toLowerCase(); } },
+  { id: 'constant', name: 'CONSTANT_CASE', fn: function (w) { return w.join('_').toUpperCase(); } },
+  { id: 'dot',      name: 'dot.case',      fn: function (w) { return w.join('.').toLowerCase(); } },
+  { id: 'title',    name: 'Title Case',    fn: function (w) { return w.map(capitalize).join(' '); } },
+  { id: 'sentence', name: 'Sentence case', fn: function (w) { return w.length ? capitalize(w[0]) + (w.length > 1 ? ' ' + w.slice(1).join(' ').toLowerCase() : '') : ''; } }
+];
+
+// Convert every line independently; blank lines are preserved.
+function convert(text, id) {
+  var fmt = FORMATS.filter(function (f) { return f.id === id; })[0];
+  if (!fmt) throw new Error('Unknown format: ' + id);
+  return String(text == null ? '' : text).split(/\r\n|\r|\n/).map(function (line) {
+    return fmt.fn(tokenize(line));
+  }).join('\n');
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var results = $('results');
+  var values = {};
+  FORMATS.forEach(function (f) {
+    var row = document.createElement('div'); row.className = 'result';
+    var name = document.createElement('div'); name.className = 'name'; name.textContent = f.name;
+    var val = document.createElement('div'); val.className = 'value'; val.id = 'out-' + f.id;
+    var btn = document.createElement('button'); btn.textContent = 'Copy';
+    btn.setAttribute('aria-label', 'Copy ' + f.name);
+    btn.addEventListener('click', function () { copy(values[f.id], f.name); });
+    row.appendChild(name); row.appendChild(val); row.appendChild(btn);
+    results.appendChild(row);
+  });
+  var copy = function (text, label) {
+    if (!text) { $('status').textContent = 'Nothing to copy.'; return; }
+    var done = function () { $('status').textContent = 'Copied ' + label + '.'; };
+    var fallback = function () {
+      var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t);
+      t.select(); document.execCommand('copy'); document.body.removeChild(t); done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  };
+  var run = function () {
+    FORMATS.forEach(function (f) {
+      values[f.id] = convert($('input').value, f.id);
+      $('out-' + f.id).textContent = values[f.id];
+    });
+    $('status').textContent = '';
+  };
+  $('input').addEventListener('input', run);
+  run();
+}
+</script>
+</body>
+</html>
