@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timestamp / Epoch Converter</title>
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --panel: #ffffff;
+    --panel-border: rgba(126, 99, 75, 0.16);
+    --text: #2d241e;
+    --muted: #6d625a;
+    --accent: #ba6f3b;
+    --error: #b9433f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 28px;
+    background: var(--bg); color: var(--text);
+    font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  }
+  .shell { max-width: 900px; margin: 0 auto; }
+  header { margin-bottom: 20px; }
+  header a { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+  header a:hover { color: var(--accent); }
+  h1 { margin: 10px 0 4px; font-size: 1.6rem; }
+  header p { color: var(--muted); margin: 0; font-size: 0.92rem; }
+  h2 { font-size: 0.95rem; margin: 0 0 10px; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 16px; padding: 18px; margin-bottom: 16px;
+  }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; }
+
+  .now-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .now-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 10px 12px; border: 1px solid var(--panel-border); border-radius: 10px; background: #fbf9f6;
+  }
+  .now-item small { display: block; color: var(--muted); font-size: 0.72rem; margin-bottom: 2px; }
+  .now-item span.v { font-size: 0.95rem; word-break: break-all; }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input[type=text], select, textarea {
+    padding: 10px 12px; border: 1px solid var(--panel-border); border-radius: 10px;
+    background: #fbf9f6; color: var(--text); font-size: 0.95rem;
+  }
+  input[type=text] { flex: 1; min-width: 220px; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  textarea {
+    width: 100%; min-height: 130px; resize: vertical;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem;
+  }
+  button.btn {
+    padding: 8px 12px; border-radius: 8px; border: 1px solid var(--panel-border);
+    background: var(--panel); color: var(--text); font-weight: 600; font-size: 0.82rem; cursor: pointer;
+  }
+  button.btn:hover { border-color: var(--accent); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff8f1; }
+
+  .results { margin-top: 14px; display: grid; gap: 8px; }
+  .result { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 9px 12px; border: 1px solid var(--panel-border); border-radius: 10px; }
+  .result .label { color: var(--muted); font-size: 0.8rem; min-width: 110px; }
+  .result .val { flex: 1; font-size: 0.9rem; word-break: break-all; }
+  .detected { margin-top: 10px; font-size: 0.85rem; color: var(--muted); }
+  .error { color: var(--error); }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.82rem; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--panel-border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.mono { word-break: break-all; }
+  .table-wrap { overflow-x: auto; }
+  .note { margin-top: 10px; font-size: 0.8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <a href="../index.html">← Back to hub</a>
+    <h1>Timestamp / Epoch Converter</h1>
+    <p>Convert between Unix epoch, ISO 8601, and human-readable local/UTC time. Runs entirely in your browser.</p>
+  </header>
+
+  <section class="panel">
+    <h2>Current time</h2>
+    <div class="now-grid" id="nowGrid"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Convert one value</h2>
+    <div class="row">
+      <input type="text" id="single" placeholder="e.g. 1700000000, 1700000000123, 2024-03-15T10:30:00Z, Mar 15 2024 10:30">
+      <button class="btn primary" id="nowBtn">Use now</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label for="tz" style="font-size:0.85rem;color:var(--muted)">Also show in</label>
+      <select id="tz"></select>
+    </div>
+    <div class="detected" id="detected"></div>
+    <div class="results" id="results"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Batch convert</h2>
+    <textarea id="batch" spellcheck="false" placeholder="One timestamp per line"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="batchSample">Sample</button>
+      <button class="btn" id="batchCopy">Copy as CSV</button>
+    </div>
+    <div class="table-wrap"><table id="batchTable"></table></div>
+    <p class="note">Numbers are read as seconds, milliseconds, microseconds or nanoseconds based on magnitude. Text without a timezone (e.g. “2024-03-15 10:30”) is interpreted in your browser's local timezone.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // ---- parsing ----
+  // Returns { date, kind } or throws.
+  function parseInput(raw) {
+    const s = raw.trim();
+    if (!s) throw new Error('empty');
+    if (/^-?\d+(\.\d+)?$/.test(s)) {
+      const n = Number(s);
+      const a = Math.abs(n);
+      let ms, kind;
+      if (a < 1e11) { ms = n * 1000; kind = 'epoch seconds'; }
+      else if (a < 1e14) { ms = n; kind = 'epoch milliseconds'; }
+      else if (a < 1e17) { ms = n / 1000; kind = 'epoch microseconds'; }
+      else { ms = n / 1e6; kind = 'epoch nanoseconds'; }
+      const d = new Date(ms);
+      if (isNaN(d)) throw new Error('out of range');
+      return { date: d, kind };
+    }
+    const d = new Date(s);
+    if (isNaN(d)) throw new Error('unrecognized format');
+    const hasTz = /(z|[+-]\d{2}:?\d{2}|\b(utc|gmt)\b)\s*$/i.test(s);
+    return { date: d, kind: hasTz ? 'date string (with timezone)' : 'date string (assumed local time)' };
+  }
+
+  // ---- formatting ----
+  function fmtInZone(date, tz) {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, year: 'numeric', month: 'short', day: '2-digit', weekday: 'short',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZoneName: 'short'
+    }).format(date);
+  }
+
+  function relative(date) {
+    const diff = date.getTime() - Date.now();
+    const abs = Math.abs(diff) / 1000;
+    const units = [['year', 31557600], ['month', 2629800], ['day', 86400], ['hour', 3600], ['minute', 60], ['second', 1]];
+    for (const [name, secs] of units) {
+      if (abs >= secs || name === 'second') {
+        const v = Math.floor(abs / secs);
+        const txt = v + ' ' + name + (v === 1 ? '' : 's');
+        return diff < 0 ? txt + ' ago' : 'in ' + txt;
+      }
+    }
+  }
+
+  function formats(date, tz) {
+    const ms = date.getTime();
+    return [
+      ['Epoch (s)', String(Math.floor(ms / 1000))],
+      ['Epoch (ms)', String(ms)],
+      ['ISO 8601 (UTC)', date.toISOString()],
+      ['UTC', date.toUTCString()],
+      ['Local (' + LOCAL_TZ + ')', fmtInZone(date, LOCAL_TZ)],
+      ...(tz && tz !== LOCAL_TZ && tz !== 'UTC' ? [[tz, fmtInZone(date, tz)]] : []),
+      ['Relative', relative(date)]
+    ];
+  }
+
+  // ---- UI: current time ticker ----
+  const nowDefs = [
+    ['Epoch seconds', () => String(Math.floor(Date.now() / 1000))],
+    ['Epoch milliseconds', () => String(Date.now())],
+    ['ISO 8601 (UTC)', () => new Date().toISOString()],
+    ['Local', () => fmtInZone(new Date(), LOCAL_TZ)]
+  ];
+  const nowEls = nowDefs.map(([label]) => {
+    const item = document.createElement('div');
+    item.className = 'now-item';
+    item.innerHTML = '<div><small></small><span class="v mono"></span></div>';
+    item.querySelector('small').textContent = label;
+    const btn = document.createElement('button');
+    btn.className = 'btn'; btn.textContent = 'Copy';
+    item.appendChild(btn);
+    $('nowGrid').appendChild(item);
+    return { v: item.querySelector('.v'), btn };
+  });
+  nowEls.forEach((e, i) => e.btn.addEventListener('click', () => copy(nowDefs[i][1](), e.btn)));
+  function tick() { nowEls.forEach((e, i) => { e.v.textContent = nowDefs[i][1](); }); }
+  tick(); setInterval(tick, 1000);
+
+  function copy(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = old; }, 1000);
+    });
+  }
+
+  // ---- UI: timezone select ----
+  const zones = (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []);
+  ['UTC', ...zones.filter(z => z !== 'UTC')].forEach(z => {
+    const o = document.createElement('option');
+    o.value = z; o.textContent = z + (z === LOCAL_TZ ? ' (local)' : '');
+    $('tz').appendChild(o);
+  });
+  $('tz').value = 'UTC';
+
+  // ---- UI: single conversion ----
+  function renderSingle() {
+    const res = $('results'), det = $('detected');
+    res.innerHTML = ''; det.className = 'detected';
+    const raw = $('single').value;
+    if (!raw.trim()) { det.textContent = ''; return; }
+    try {
+      const { date, kind } = parseInput(raw);
+      det.textContent = 'Detected: ' + kind;
+      formats(date, $('tz').value).forEach(([label, val]) => {
+        const row = document.createElement('div');
+        row.className = 'result';
+        row.innerHTML = '<span class="label"></span><span class="val mono"></span>';
+        row.querySelector('.label').textContent = label;
+        row.querySelector('.val').textContent = val;
+        const b = document.createElement('button');
+        b.className = 'btn'; b.textContent = 'Copy';
+        b.addEventListener('click', () => copy(val, b));
+        row.appendChild(b);
+        res.appendChild(row);
+      });
+    } catch (e) {
+      det.className = 'detected error';
+      det.textContent = 'Could not parse: ' + e.message;
+    }
+  }
+  $('single').addEventListener('input', renderSingle);
+  $('tz').addEventListener('change', () => { renderSingle(); renderBatch(); });
+  $('nowBtn').addEventListener('click', () => { $('single').value = String(Math.floor(Date.now() / 1000)); renderSingle(); });
+
+  // ---- UI: batch ----
+  let batchRows = [];
+  function renderBatch() {
+    const tbl = $('batchTable');
+    const lines = $('batch').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    batchRows = [['Input', 'Detected as', 'Epoch (s)', 'ISO 8601 (UTC)', 'Local']];
+    lines.forEach(l => {
+      try {
+        const { date, kind } = parseInput(l);
+        batchRows.push([l, kind, String(Math.floor(date.getTime() / 1000)), date.toISOString(), fmtInZone(date, LOCAL_TZ)]);
+      } catch (e) {
+        batchRows.push([l, 'error: ' + e.message, '', '', '']);
+      }
+    });
+    tbl.innerHTML = '';
+    if (!lines.length) return;
+    batchRows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      r.forEach(c => {
+        const cell = document.createElement(i === 0 ? 'th' : 'td');
+        if (i) cell.className = 'mono';
+        cell.textContent = c;
+        tr.appendChild(cell);
+      });
+      tbl.appendChild(tr);
+    });
+  }
+  $('batch').addEventListener('input', renderBatch);
+  $('batchSample').addEventListener('click', () => {
+    $('batch').value = '1700000000\n1700000000123\n2024-03-15T10:30:00Z\n2024-03-15 10:30\nMar 15, 2024 10:30 PM UTC\nnot a date';
+    renderBatch();
+  });
+  $('batchCopy').addEventListener('click', () => {
+    if (batchRows.length < 2) return;
+    const q = c => '"' + c.replace(/"/g, '""') + '"';
+    copy(batchRows.map(r => r.map(q).join(',')).join('\n'), $('batchCopy'));
+  });
+})();
+</script>
+</body>
+</html>

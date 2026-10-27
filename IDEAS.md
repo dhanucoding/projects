@@ -82,11 +82,12 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
    notes: Handle quoted fields/commas correctly; pretty-print JSON output; download button for the result.
    shipped: 2026-10-19
 
-10. status: pending
+10. status: done
     slug: timestamp-converter
     name: Timestamp / Epoch Converter
     one-liner: Convert between Unix epoch, ISO 8601, and human-readable local/UTC time.
     notes: Live "current time" ticker, batch conversion of multiple pasted timestamps.
+    shipped: 2026-10-20
 
 11. status: done
     slug: uuid-generator
