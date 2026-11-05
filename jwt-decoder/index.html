@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JWT Decoder</title>
+<style>
+  :root { --bg:#f6f1ea; --card:#fffdf9; --ink:#2b2622; --muted:#7a6f64; --accent:#c4562b; --line:#e4dacd; --ok:#2d7a46; --bad:#b3261e; --warn:#8a5a00; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  h2 { margin: 0 0 8px; font-size: 1rem; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  .banner { border:1px solid var(--warn); background:#fff6e0; color:var(--warn); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:.9rem; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  textarea { width:100%; min-height: 120px; padding:10px; border:1px solid var(--line); border-radius:8px; font: .85rem ui-monospace, Menlo, Consolas, monospace; resize: vertical; background:#fff; color:var(--ink); word-break: break-all; }
+  textarea:focus-visible, button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button { padding:6px 12px; border:1px solid var(--accent); background:transparent; color:var(--accent); border-radius:8px; font:inherit; font-size:.85rem; cursor:pointer; }
+  pre { margin:0; padding:10px; background:#fff; border:1px solid var(--line); border-radius:8px; font: .85rem ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; min-height:2.2em; }
+  .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .error { color:var(--bad); font-size:.9rem; min-height:1.2em; margin-top:8px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.8rem; border:1px solid currentColor; margin-right:6px; }
+  .badge.ok { color:var(--ok); } .badge.bad { color:var(--bad); } .badge.warn { color:var(--warn); }
+  table { border-collapse:collapse; width:100%; font-size:.88rem; }
+  td, th { text-align:left; padding:6px 8px; border-top:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; width:90px; }
+  .status { color: var(--muted); font-size:.85rem; min-height:1.2em; margin-top:6px; }
+  .hint { color: var(--muted); font-size:.82rem; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>JWT Decoder</h1>
+  <p class="sub">Inspect a JSON Web Token's header and payload. Everything runs in your browser; the token is never sent anywhere or stored.</p>
+  <div class="banner" role="note"><strong>Decode only.</strong> The signature is <strong>not verified</strong> &mdash; decoded contents are untrusted and must not be used to decide whether a token is valid.</div>
+
+  <div class="panel">
+    <textarea id="input" aria-label="JWT" spellcheck="false" autocomplete="off" placeholder="Paste a JWT: xxxxx.yyyyy.zzzzz (a leading &quot;Bearer &quot; is fine)"></textarea>
+    <div class="error" id="error" role="alert"></div>
+    <div class="hint">Paste a token to decode it.</div>
+  </div>
+
+  <div id="result" hidden>
+    <div class="panel"><div id="badges"></div><table id="summary"></table></div>
+    <div class="panel"><div class="head"><h2>Header</h2><button id="copyHeader">Copy</button></div><pre id="header"></pre></div>
+    <div class="panel"><div class="head"><h2>Payload</h2><button id="copyPayload">Copy</button></div><pre id="payload"></pre></div>
+    <div class="panel"><h2>Time claims</h2><table id="times"></table></div>
+    <div class="panel"><h2>Signature</h2><pre id="signature"></pre></div>
+  </div>
+  <div class="status" id="status" role="status"></div>
+</main>
+
+<script>
+// ---- core (tested by test.js; keep free of DOM access) ----
+// CORE-START
+// Decode one base64url (or plain base64) segment to a UTF-8 string. Throws on bad input.
+function decodeSegment(seg) {
+  var s = String(seg).replace(/=+$/, '');
+  if (!/^[A-Za-z0-9\-_+\/]*$/.test(s)) throw new Error('contains characters that are not base64url');
+  if (s.length % 4 === 1) throw new Error('has an invalid base64 length');
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s), bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+  catch (e) { throw new Error('is not valid UTF-8'); }
+}
+
+function isPlainObject(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+
+function decodeJsonPart(seg, label) {
+  var text;
+  try { text = decodeSegment(seg); } catch (e) { throw new Error(label + ' ' + e.message); }
+  var obj;
+  try { obj = JSON.parse(text); } catch (e) { throw new Error(label + ' is not valid JSON'); }
+  if (!isPlainObject(obj)) throw new Error(label + ' must be a JSON object');
+  return obj;
+}
+
+// Tolerates "Bearer " prefix, surrounding quotes, and whitespace/newlines inside the token.
+function parseJwt(input) {
+  var t = String(input == null ? '' : input).trim()
+    .replace(/^bearer(\s+|$)/i, '').replace(/^(["'])(.*)\1$/s, '$2').replace(/\s+/g, '');
+  if (!t) return { ok: false, error: 'Empty input.' };
+  var parts = t.split('.');
+  if (parts.length === 5) return { ok: false, error: 'This looks like an encrypted token (JWE, 5 parts); its contents cannot be decoded without the key.' };
+  if (parts.length !== 3) return { ok: false, error: 'Expected 3 dot-separated parts, found ' + parts.length + '.' };
+  try {
+    var header = decodeJsonPart(parts[0], 'Header');
+    var payload = decodeJsonPart(parts[1], 'Payload');
+    return { ok: true, header: header, payload: payload, signature: parts[2], alg: typeof header.alg === 'string' ? header.alg : null };
+  } catch (e) { return { ok: false, error: e.message + '.' }; }
+}
+
+function formatRelative(deltaMs) {
+  var abs = Math.abs(deltaMs), s = Math.round(abs / 1000);
+  var units = [['day', 86400], ['hour', 3600], ['minute', 60], ['second', 1]];
+  if (s === 0) return 'now';
+  var text = '';
+  for (var i = 0; i < units.length; i++) {
+    if (s >= units[i][1]) {
+      var n = Math.floor(s / units[i][1]);
+      text = n + ' ' + units[i][0] + (n === 1 ? '' : 's');
+      break;
+    }
+  }
+  return deltaMs > 0 ? 'in ' + text : text + ' ago';
+}
+
+// exp / nbf / iat as NumericDate (seconds since epoch). Non-numeric or out-of-range values are flagged, not hidden.
+function timeClaims(payload, nowMs) {
+  return ['exp', 'nbf', 'iat'].filter(function (k) { return k in payload; }).map(function (k) {
+    var v = payload[k], d = typeof v === 'number' && isFinite(v) ? new Date(v * 1000) : null;
+    if (!d || isNaN(d.getTime())) return { claim: k, raw: v, valid: false, note: 'not a valid NumericDate (expected seconds since epoch)' };
+    return { claim: k, raw: v, valid: true, iso: d.toISOString(), relative: formatRelative(d.getTime() - nowMs), ms: d.getTime() };
+  });
+}
+
+// 'expired' | 'not-yet-valid' | 'active' | 'no-expiry'
+function tokenStatus(payload, nowMs) {
+  var by = {}; timeClaims(payload, nowMs).forEach(function (c) { by[c.claim] = c; });
+  if (by.exp && by.exp.valid && by.exp.ms <= nowMs) return 'expired';
+  if (by.nbf && by.nbf.valid && by.nbf.ms > nowMs) return 'not-yet-valid';
+  return by.exp && by.exp.valid ? 'active' : 'no-expiry';
+}
+
+function describeSignature(sig, alg) {
+  if (!sig) return alg && alg.toLowerCase() === 'none' ? 'Empty (alg "none": unsecured token).' : 'Empty: this token carries no signature.';
+  return sig + '\n(' + sig.length + ' characters, base64url; not verified)';
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var last = null;
+  var row = function (tbl, k, v) {
+    var tr = document.createElement('tr'), th = document.createElement('th'), td = document.createElement('td');
+    th.textContent = k; td.textContent = v; tr.appendChild(th); tr.appendChild(td); tbl.appendChild(tr);
+  };
+  var badge = function (text, cls) {
+    var b = document.createElement('span'); b.className = 'badge ' + cls; b.textContent = text; $('badges').appendChild(b);
+  };
+  var run = function () {
+    $('status').textContent = '';
+    var r = parseJwt($('input').value);
+    $('error').textContent = r.ok || r.error === 'Empty input.' ? '' : r.error;
+    $('result').hidden = !r.ok;
+    last = r.ok ? r : null;
+    if (!r.ok) return;
+    var now = Date.now();
+    $('header').textContent = JSON.stringify(r.header, null, 2);
+    $('payload').textContent = JSON.stringify(r.payload, null, 2);
+    $('signature').textContent = describeSignature(r.signature, r.alg);
+    $('badges').textContent = ''; $('summary').textContent = ''; $('times').textContent = '';
+    badge('Signature NOT verified', 'warn');
+    var st = tokenStatus(r.payload, now);
+    var labels = { 'expired': ['Expired', 'bad'], 'not-yet-valid': ['Not yet valid', 'bad'], 'active': ['Not expired', 'ok'], 'no-expiry': ['No expiry (exp) claim', 'warn'] };
+    badge(labels[st][0], labels[st][1]);
+    if (r.alg && r.alg.toLowerCase() === 'none') badge('alg: none', 'bad');
+    row($('summary'), 'Algorithm', r.alg || '(none given)');
+    ['typ', 'kid'].forEach(function (k) { if (typeof r.header[k] === 'string') row($('summary'), k, r.header[k]); });
+    ['iss', 'sub', 'aud'].forEach(function (k) { if (k in r.payload) row($('summary'), k, typeof r.payload[k] === 'string' ? r.payload[k] : JSON.stringify(r.payload[k])); });
+    var tc = timeClaims(r.payload, now);
+    if (!tc.length) row($('times'), '', 'No exp, nbf, or iat claims.');
+    tc.forEach(function (c) { row($('times'), c.claim, c.valid ? c.iso + '  (' + c.relative + ')' : String(JSON.stringify(c.raw)) + ' - ' + c.note); });
+  };
+  var copy = function (text, label) {
+    var done = function () { $('status').textContent = 'Copied ' + label + '.'; };
+    var fallback = function () {
+      var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t);
+      t.select(); document.execCommand('copy'); document.body.removeChild(t); done();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  };
+  $('input').addEventListener('input', run);
+  $('copyHeader').addEventListener('click', function () { if (last) copy(JSON.stringify(last.header, null, 2), 'header'); });
+  $('copyPayload').addEventListener('click', function () { if (last) copy(JSON.stringify(last.payload, null, 2), 'payload'); });
+  run();
+}
+</script>
+</body>
+</html>

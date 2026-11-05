@@ -103,7 +103,8 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
     notes: Word-boundary tokenizer that handles mixed input case; live preview of all formats at once.
     shipped: 2026-10-27 (branch app/text-case-converter)
 
-13. status: pending
+13. status: done
+    shipped: 2026-11-04 (branch app/jwt-decoder)
     slug: jwt-decoder
     name: JWT Decoder
     one-liner: Decode a JWT's header and payload for inspection (no signature verification).
