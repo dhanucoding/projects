@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word Counter &amp; Readability</title>
+<style>
+  :root { --bg:#f6f1ea; --card:#fffdf9; --ink:#2b2622; --muted:#7a6f64; --accent:#c4562b; --line:#e4dacd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  h2 { margin: 0 0 10px; font-size: 1rem; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  textarea { width:100%; min-height: 220px; padding:10px; border:1px solid var(--line); border-radius:8px; font: .95rem/1.5 system-ui, -apple-system, Segoe UI, sans-serif; resize: vertical; background:#fff; color:var(--ink); }
+  button { padding:6px 12px; border:1px solid var(--accent); background:transparent; color:var(--accent); border-radius:8px; font:inherit; font-size:.85rem; cursor:pointer; }
+  button:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:#fff; }
+  .stat .num { font-size:1.4rem; font-weight:600; font-variant-numeric: tabular-nums; }
+  .stat .label { color:var(--muted); font-size:.8rem; }
+  .read { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .hint { color: var(--muted); font-size:.82rem; margin-top:8px; }
+  @media (max-width: 480px) { .read { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Word Counter &amp; Readability</h1>
+  <p class="sub">Live counts, reading time, and a Flesch-Kincaid readability estimate. Everything runs in your browser.</p>
+
+  <div class="panel">
+    <textarea id="input" aria-label="Text to analyze" placeholder="Type or paste your text here…"></textarea>
+    <div class="toolbar">
+      <span class="hint" id="status" role="status"></span>
+      <button id="clear" type="button">Clear</button>
+    </div>
+  </div>
+
+  <div class="panel" aria-live="polite">
+    <h2>Counts</h2>
+    <div class="grid" id="counts"></div>
+  </div>
+
+  <div class="panel" aria-live="polite">
+    <h2>Time &amp; readability</h2>
+    <div class="grid" id="times"></div>
+    <div class="read" id="readability" style="margin-top:10px"></div>
+    <div class="hint" id="readNote"></div>
+  </div>
+</main>
+
+<script>
+// ---- core (tested by test.js; keep free of DOM access) ----
+// CORE-START
+var READ_WPM = 238, SPEAK_WPM = 150;
+var HAS_SEG = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function';
+
+// Words: Intl.Segmenter when available (handles CJK, keeps don't / 1,000 / 3.14 whole),
+// otherwise a regex that approximates the same for space-separated scripts.
+function words(text) {
+  text = String(text == null ? '' : text);
+  if (HAS_SEG) {
+    var out = [];
+    var it = new Intl.Segmenter('en', { granularity: 'word' }).segment(text);
+    for (var s of it) if (s.isWordLike) out.push(s.segment);
+    return out;
+  }
+  return text.match(/[\p{L}\p{N}\p{M}]+(?:['’.,][\p{L}\p{N}\p{M}]+)*/gu) || [];
+}
+
+// Grapheme clusters, so an emoji family or a letter + combining mark counts once.
+function graphemes(text) {
+  text = String(text == null ? '' : text);
+  if (HAS_SEG) return Array.from(new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(text), function (s) { return s.segment; });
+  return Array.from(text);
+}
+
+var ABBREV = /\b(Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs)\./g;
+// Count sentences: terminators (. ! ? … and CJK 。！？) followed by whitespace/end,
+// ignoring a few common abbreviations and decimals like 3.14. Unterminated text is one sentence.
+function sentenceCount(text) {
+  text = String(text == null ? '' : text)
+    .replace(ABBREV, '$1\u0000')
+    .replace(/\b([A-Za-z])\.([A-Za-z])\./g, '$1\u0000$2\u0000'); // e.g. / i.e.
+  var parts = text.split(/[.!?…]+["'”’)\]]*(?=\s|$)|[。！？]+/);
+  return parts.filter(function (p) { return words(p).length > 0; }).length;
+}
+
+function paragraphCount(text) {
+  return String(text == null ? '' : text).split(/\n\s*\n/).filter(function (p) { return p.trim(); }).length;
+}
+
+function lineCount(text) {
+  text = String(text == null ? '' : text);
+  return text ? text.split(/\r\n|\r|\n/).length : 0;
+}
+
+// Heuristic English syllable count (vowel groups, minus silent endings). Minimum 1.
+function syllables(word) {
+  var accentedE = /[éèêë]/i.test(word.normalize('NFC')); // pronounced final e, e.g. café
+  var w = word.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!w) return /\d/.test(word) ? 1 : 0;
+  if (w.length <= 3) return 1;
+  if (!accentedE) w = w.replace(/(?:[^laeiouy]es|[^tdaeiouy]ed|[^laeiouy]e)$/, '').replace(/^y/, '');
+  var m = w.match(/[aeiouy]+/g);
+  return Math.max(1, m ? m.length : 0);
+}
+
+function isLatinWord(w) { return /^[\p{Script=Latin}\p{N}\p{M}'’.,]+$/u.test(w); }
+
+// "45 sec", "3 min 20 sec", "0 sec"
+function duration(seconds) {
+  seconds = Math.round(seconds);
+  if (seconds < 60) return seconds + ' sec';
+  var m = Math.floor(seconds / 60), s = seconds % 60;
+  return m + ' min' + (s ? ' ' + s + ' sec' : '');
+}
+
+function fmt(n) { return typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—'; }
+
+function round1(n) { return Math.round(n * 10) / 10; }
+
+function easeLabel(score) {
+  if (score >= 90) return 'Very easy';
+  if (score >= 80) return 'Easy';
+  if (score >= 70) return 'Fairly easy';
+  if (score >= 60) return 'Plain English';
+  if (score >= 50) return 'Fairly difficult';
+  if (score >= 30) return 'Difficult';
+  return 'Very difficult';
+}
+
+function analyze(text) {
+  text = String(text == null ? '' : text);
+  var ws = words(text);
+  var gs = graphemes(text);
+  var sentences = sentenceCount(text);
+  var r = {
+    words: ws.length,
+    characters: gs.length,
+    charactersNoSpaces: gs.filter(function (g) { return !/^\s+$/.test(g); }).length,
+    sentences: sentences,
+    paragraphs: paragraphCount(text),
+    lines: lineCount(text),
+    unique: new Set(ws.map(function (w) { return w.toLowerCase(); })).size,
+    avgWordLength: null,
+    longestWord: '',
+    readSeconds: ws.length / READ_WPM * 60,
+    speakSeconds: ws.length / SPEAK_WPM * 60,
+    flesch: null, grade: null, ease: null
+  };
+  if (!ws.length) return r;
+  var letters = 0;
+  ws.forEach(function (w) {
+    var len = graphemes(w).length;
+    letters += len;
+    if (len > graphemes(r.longestWord).length) r.longestWord = w;
+  });
+  r.avgWordLength = round1(letters / ws.length);
+  // Readability is only meaningful for mostly-Latin English-like text.
+  var latin = ws.filter(isLatinWord);
+  if (latin.length >= ws.length / 2 && latin.length >= 1 && sentences >= 1) {
+    var syl = latin.reduce(function (a, w) { return a + syllables(w); }, 0);
+    var wps = latin.length / sentences, spw = syl / latin.length;
+    r.flesch = round1(206.835 - 1.015 * wps - 84.6 * spw);
+    r.grade = round1(0.39 * wps + 11.8 * spw - 15.59);
+    r.ease = easeLabel(r.flesch);
+  }
+  return r;
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var tile = function (host, label, value) {
+    var d = document.createElement('div'); d.className = 'stat';
+    var n = document.createElement('div'); n.className = 'num'; n.textContent = value;
+    var l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+    d.appendChild(n); d.appendChild(l); host.appendChild(d);
+  };
+  var run = function () {
+    var r = analyze($('input').value);
+    var counts = $('counts'), times = $('times'), read = $('readability');
+    counts.textContent = ''; times.textContent = ''; read.textContent = '';
+    tile(counts, 'Words', fmt(r.words));
+    tile(counts, 'Characters', fmt(r.characters));
+    tile(counts, 'Chars (no spaces)', fmt(r.charactersNoSpaces));
+    tile(counts, 'Sentences', fmt(r.sentences));
+    tile(counts, 'Paragraphs', fmt(r.paragraphs));
+    tile(counts, 'Lines', fmt(r.lines));
+    tile(counts, 'Unique words', fmt(r.unique));
+    tile(counts, 'Avg word length', r.avgWordLength == null ? '—' : String(r.avgWordLength));
+    tile(counts, 'Longest word', r.longestWord || '—');
+    tile(times, 'Reading time', r.words ? duration(r.readSeconds) : '—');
+    tile(times, 'Speaking time', r.words ? duration(r.speakSeconds) : '—');
+    tile(read, 'Flesch reading ease' + (r.ease ? ' · ' + r.ease : ''), r.flesch == null ? '—' : String(r.flesch));
+    tile(read, 'Flesch-Kincaid grade level', r.grade == null ? '—' : String(r.grade));
+    $('readNote').textContent = r.words && r.flesch == null
+      ? 'Readability needs English-like (Latin-script) text.'
+      : 'Estimates use a syllable heuristic for English; treat them as a rough guide. Reading time assumes ' + READ_WPM + ' wpm, speaking ' + SPEAK_WPM + ' wpm.';
+  };
+  $('input').addEventListener('input', run);
+  $('clear').addEventListener('click', function () { $('input').value = ''; run(); $('input').focus(); });
+  run();
+}
+</script>
+</body>
+</html>

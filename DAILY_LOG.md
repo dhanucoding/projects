@@ -5,6 +5,7 @@ and `IDEAS.md`). Newest first.
 
 | Date | App | Folder | PR |
 |------|-----|--------|----|
+| 2026-11-10 | Word Counter & Readability | `word-counter/` | branch: `app/word-counter` |
 | 2026-11-04 | JWT Decoder | `jwt-decoder/` | branch: `app/jwt-decoder` |
 | 2026-10-27 | Text Case Converter | `text-case-converter/` | branch: `app/text-case-converter` |
 | 2026-10-20 | Timestamp / Epoch Converter | `timestamp-converter/` | branch: `daily-app/timestamp-converter-2026-10-20` |
