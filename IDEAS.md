@@ -110,7 +110,8 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
     one-liner: Decode a JWT's header and payload for inspection (no signature verification).
     notes: Clearly label that it does not verify signatures — decode-only, entirely client-side, never send the token anywhere.
 
-14. status: pending
+14. status: done
+    shipped: 2026-11-10 (branch app/word-counter)
     slug: word-counter
     name: Word Counter & Readability
     one-liner: Count words/characters/sentences and estimate reading time and grade-level readability.
