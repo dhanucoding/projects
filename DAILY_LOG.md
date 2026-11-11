@@ -5,6 +5,7 @@ and `IDEAS.md`). Newest first.
 
 | Date | App | Folder | PR |
 |------|-----|--------|----|
+| 2026-11-11 | Pomodoro Timer | `pomodoro-timer/` | branch: `app/pomodoro-timer` |
 | 2026-11-10 | Word Counter & Readability | `word-counter/` | branch: `app/word-counter` |
 | 2026-11-04 | JWT Decoder | `jwt-decoder/` | branch: `app/jwt-decoder` |
 | 2026-10-27 | Text Case Converter | `text-case-converter/` | branch: `app/text-case-converter` |
