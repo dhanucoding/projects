@@ -34,13 +34,22 @@ pattern so every new app (hand-written or auto-generated) stays consistent.
 
 The root `index.html` renders its cards from the `APPS` array in its inline
 script. Add one entry — `{ cat, icon, title, href, desc }` — next to the other
-apps in the same category. `cat` must be one of the names in `CATEGORIES`
-(add a new name there if no category fits). Keep `desc` to one sentence; the
-card clamps it to two lines. Don't hand-write card HTML.
+apps in the same category, plus two optional fields: `tags` (array of extra
+search words, e.g. `['json', 'format']`) and `added` (`'YYYY-MM-DD'`, the ship
+date; the card shows a "New" badge for 14 days). Always set both on new apps.
+`cat` must be one of the names in `CATEGORIES` (add a new name there if no
+category fits). Keep `desc` to one sentence; the card clamps it to two lines.
+Don't hand-write card HTML.
 
-Hub layout notes: apps are grouped by category, filtered by the search box,
-and `featured: true` makes a card span two columns (used for Kanban only).
-The hub is a single-file page; it needs JavaScript to list the apps.
+Hub layout notes: a sticky bar holds the search box (press `/` or Ctrl/⌘+K to
+focus, Enter opens the top match) and category chips with live counts. Apps
+show grouped by category, or as one ranked list while searching. A Grid/List
+toggle and a light/dark toggle are remembered in `localStorage`, and the
+category and query are kept in the URL hash (`#cat=converters&q=json`).
+`featured: true` makes a card span two columns in grid view (used for Kanban
+only). The hub is a single-file page; it needs JavaScript to list the apps.
+After editing the `APPS` data, run `node scripts/hub.test.js` — it checks that
+every entry has a valid category and an existing `href`.
 
 ## Per-app README.md template
 

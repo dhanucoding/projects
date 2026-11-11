@@ -3,320 +3,562 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
 <title>Projects Hub</title>
+<script>
+// Apply a saved theme before first paint so there is no light/dark flash.
+(function () {
+  try {
+    var t = localStorage.getItem('hub-theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* storage unavailable: follow the system theme */ }
+})();
+</script>
 <style>
   :root {
+    color-scheme: light;
     --bg: #f6f3ee;
-    --panel: rgba(255, 255, 255, 0.82);
-    --panel-border: rgba(126, 99, 75, 0.16);
+    --glow1: rgba(245, 209, 175, 0.6);
+    --glow2: rgba(196, 213, 255, 0.55);
     --text: #2d241e;
     --muted: #6d625a;
-    --accent: #ba6f3b;
-    --accent-soft: #f2d6bd;
-    --blue: #bcdcff;
-    --purple: #dccbf0;
-    --green: #bde8c3;
-    --gray: #d4d7dc;
-    --shadow: 0 20px 60px rgba(77, 53, 36, 0.12);
+    --accent: #a85b27;
+    --on-accent: #ffffff;
+    --line: rgba(126, 99, 75, 0.18);
+    --card: rgba(255, 255, 255, 0.86);
+    --card-shadow: 0 6px 18px rgba(77, 53, 36, 0.06);
+    --card-shadow-hover: 0 14px 30px rgba(77, 53, 36, 0.13);
+    --bar: rgba(246, 243, 238, 0.88);
+    --field: #ffffff;
+    --tile: #fff1e4;
+    --featured: linear-gradient(135deg, rgba(243, 231, 255, 0.75), rgba(255, 255, 255, 0.9));
+    --featured-line: #dccbf0;
+    --badge-bg: #dff3e3;
+    --badge-text: #1d6b34;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #171412;
+      --glow1: rgba(186, 111, 59, 0.16);
+      --glow2: rgba(96, 120, 200, 0.14);
+      --text: #f2eae2;
+      --muted: #ab9f95;
+      --accent: #e8985f;
+      --on-accent: #1a1410;
+      --line: rgba(255, 255, 255, 0.11);
+      --card: rgba(255, 255, 255, 0.045);
+      --card-shadow: none;
+      --card-shadow-hover: 0 14px 30px rgba(0, 0, 0, 0.4);
+      --bar: rgba(23, 20, 18, 0.88);
+      --field: #221e1b;
+      --tile: rgba(232, 152, 95, 0.14);
+      --featured: linear-gradient(135deg, rgba(150, 110, 220, 0.2), rgba(255, 255, 255, 0.04));
+      --featured-line: rgba(180, 150, 240, 0.4);
+      --badge-bg: rgba(110, 200, 140, 0.18);
+      --badge-text: #8fdba8;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #171412;
+    --glow1: rgba(186, 111, 59, 0.16);
+    --glow2: rgba(96, 120, 200, 0.14);
+    --text: #f2eae2;
+    --muted: #ab9f95;
+    --accent: #e8985f;
+    --on-accent: #1a1410;
+    --line: rgba(255, 255, 255, 0.11);
+    --card: rgba(255, 255, 255, 0.045);
+    --card-shadow: none;
+    --card-shadow-hover: 0 14px 30px rgba(0, 0, 0, 0.4);
+    --bar: rgba(23, 20, 18, 0.88);
+    --field: #221e1b;
+    --tile: rgba(232, 152, 95, 0.14);
+    --featured: linear-gradient(135deg, rgba(150, 110, 220, 0.2), rgba(255, 255, 255, 0.04));
+    --featured-line: rgba(180, 150, 240, 0.4);
+    --badge-bg: rgba(110, 200, 140, 0.18);
+    --badge-text: #8fdba8;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     min-height: 100vh;
-    padding: 32px;
     color: var(--text);
     font-family: "Avenir Next", "Trebuchet MS", sans-serif;
-    background:
-      radial-gradient(circle at top left, rgba(245, 209, 175, 0.75), transparent 28%),
-      radial-gradient(circle at 85% 20%, rgba(196, 213, 255, 0.7), transparent 24%),
-      linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(circle at top left, var(--glow1), transparent 28%),
+      radial-gradient(circle at 85% 12%, var(--glow2), transparent 24%);
+    background-repeat: no-repeat;
   }
 
-  .shell {
-    max-width: 1100px;
-    margin: 0 auto;
+  .shell { max-width: 1100px; margin: 0 auto; padding: 0 24px 60px; }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible, .card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
-  .hero {
-    position: relative;
-    overflow: hidden;
-    padding: 38px;
-    border: 1px solid var(--panel-border);
-    border-radius: 28px;
-    background: var(--panel);
-    backdrop-filter: blur(12px);
-    box-shadow: var(--shadow);
-  }
-
-  .hero::after {
-    content: "";
-    position: absolute;
-    width: 220px;
-    height: 220px;
-    right: -60px;
-    top: -70px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, rgba(186, 111, 59, 0.18), rgba(220, 203, 240, 0.4));
-  }
-
-  .eyebrow {
-    display: inline-block;
-    margin-bottom: 12px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: #fff4ea;
-    color: var(--accent);
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  h1 {
-    max-width: 700px;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(2.4rem, 5vw, 4.5rem);
-    line-height: 0.95;
-    letter-spacing: -0.04em;
-  }
-
-  .intro {
-    max-width: 680px;
-    margin-top: 16px;
-    color: var(--muted);
-    font-size: 1.02rem;
-    line-height: 1.7;
-  }
-
-  .toolbar {
+  /* Slim header */
+  .top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin: 28px 4px 8px;
+    padding: 22px 0 14px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    letter-spacing: -0.02em;
+  }
+  #count { color: var(--muted); font-size: 0.9rem; }
+  .tools { display: flex; align-items: center; gap: 8px; }
+
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--field); }
+  .seg button { padding: 7px 13px; border: 0; background: transparent; font-size: 0.85rem; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    border: 1px solid var(--line); border-radius: 50%;
+    background: var(--field); font-size: 1.05rem; line-height: 1;
   }
 
-  .toolbar h2 { font-size: 1.2rem; letter-spacing: 0.02em; }
-  .toolbar p { color: var(--muted); font-size: 0.92rem; }
-
+  /* Sticky search + category chips */
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -24px;
+    padding: 10px 24px 12px;
+    background: var(--bar);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .searchwrap { position: relative; }
   .search {
-    width: min(320px, 100%);
-    padding: 10px 16px;
-    border: 1px solid var(--panel-border);
+    width: 100%;
+    padding: 11px 44px 11px 18px;
+    border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--field);
     color: var(--text);
     font: inherit;
-    font-size: 0.92rem;
+    font-size: 0.95rem;
   }
+  .search::placeholder { color: var(--muted); }
+  .kbd {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    padding: 1px 7px; border: 1px solid var(--line); border-radius: 6px;
+    color: var(--muted); font-size: 0.75rem; pointer-events: none;
+  }
+  .search:focus ~ .kbd, .search:not(:placeholder-shown) ~ .kbd { display: none; }
 
-  .search:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chips { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 13px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: var(--field); font-size: 0.85rem;
+  }
+  .chip span { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .chip[aria-pressed="true"] span { color: inherit; opacity: 0.85; }
+  .chip.none:not([aria-pressed="true"]) { opacity: 0.45; }
 
-  .category { margin-top: 26px; }
-
+  /* Results */
+  .category { margin-top: 24px; }
   .category h3 {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
+    display: flex; align-items: baseline; gap: 8px;
     margin: 0 4px 12px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--accent);
   }
-
   .category h3 span { color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+  .results { margin-top: 24px; }
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 
   .card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 18px;
-    text-decoration: none;
-    color: inherit;
-    border-radius: 20px;
-    border: 1px solid var(--panel-border);
-    background: rgba(255, 255, 255, 0.84);
-    box-shadow: 0 10px 26px rgba(77, 53, 36, 0.07);
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 16px;
+    text-decoration: none; color: inherit;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    box-shadow: var(--card-shadow);
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   }
-
-  .card:hover, .card:focus-visible {
-    transform: translateY(-3px);
-    border-color: var(--accent);
-    box-shadow: 0 16px 34px rgba(77, 53, 36, 0.13);
-    outline: none;
-  }
-
-  .card-featured {
-    grid-column: span 2;
-    border-color: var(--purple);
-    background: linear-gradient(135deg, rgba(243, 231, 255, 0.7), rgba(255, 255, 255, 0.9));
-  }
+  .card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: var(--card-shadow-hover); }
+  .card-featured { grid-column: span 2; border-color: var(--featured-line); background: var(--featured); }
 
   .icon {
-    display: inline-flex;
-    width: 40px;
-    height: 40px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 12px;
-    background: #fff4ea;
-    font-size: 1.25rem;
+    display: inline-flex; flex: none;
+    width: 38px; height: 38px;
+    align-items: center; justify-content: center;
+    border-radius: 11px; background: var(--tile); font-size: 1.15rem;
   }
-
-  .card h4 { font-size: 1.05rem; line-height: 1.2; }
-
+  .body { min-width: 0; }
+  .title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h4 { font-size: 1rem; line-height: 1.25; }
   .card p {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    color: var(--muted);
-    font-size: 0.88rem;
-    line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    margin-top: 4px; color: var(--muted); font-size: 0.86rem; line-height: 1.45;
   }
+  .badge {
+    padding: 1px 8px; border-radius: 999px;
+    background: var(--badge-bg); color: var(--badge-text);
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .cat-tag { color: var(--muted); font-size: 0.75rem; }
 
-  .empty { margin: 28px 4px; color: var(--muted); }
+  /* List view: one compact row per app */
+  .list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); }
+  .list .card {
+    flex-direction: row; align-items: center; gap: 14px;
+    padding: 10px 14px;
+    border: 0; border-radius: 0; border-top: 1px solid var(--line);
+    background: transparent; box-shadow: none;
+  }
+  .list .card:first-child { border-top: 0; }
+  .list .card:hover { transform: none; box-shadow: none; background: var(--tile); }
+  .list .card-featured { grid-column: auto; background: transparent; }
+  .list .icon { width: 32px; height: 32px; font-size: 1rem; border-radius: 9px; }
+  .list .body { flex: 1; display: flex; align-items: center; gap: 14px; }
+  .list .title { flex: none; width: min(260px, 38%); }
+  .list .card p {
+    display: block; margin: 0; flex: 1;
+    white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-size: 0.84rem;
+  }
+  .list .cat-tag { flex: none; }
+
+  .empty { margin: 36px 4px; color: var(--muted); text-align: center; }
+  .empty button { margin-top: 10px; padding: 7px 16px; border: 1px solid var(--accent); border-radius: 999px; background: transparent; color: var(--accent); }
 
   [hidden] { display: none !important; }
 
-  @media (max-width: 1000px) {
-    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
-
-  @media (max-width: 760px) {
-    .grid { grid-template-columns: 1fr 1fr; }
-  }
-
-  @media (max-width: 520px) {
-    body { padding: 18px; }
-    .hero { padding: 24px; border-radius: 22px; }
-    .grid { grid-template-columns: 1fr; }
+  @media (max-width: 640px) {
+    .shell { padding: 0 16px 48px; }
+    .bar { margin: 0 -16px; padding: 10px 16px 12px; }
+    .top { flex-wrap: wrap; }
     .card-featured { grid-column: auto; }
-    .toolbar { flex-direction: column; align-items: flex-start; }
+    .list .body { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .list .title { width: auto; }
+    .list .card p { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+    .list .cat-tag { display: none; }
   }
+
+  @media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
 </style>
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <span class="eyebrow">Projects Hub</span>
-      <h1>Small apps, one clean entry point.</h1>
-      <p class="intro">
-        Browser-based tools and boards that run entirely on your device. Pick one below, or search to jump straight to it.
-      </p>
-    </section>
-
-    <div class="toolbar">
-      <div>
-        <h2>Available Apps</h2>
-        <p id="count">Published directly from GitHub Pages.</p>
+    <header class="top">
+      <div class="brand">
+        <h1>Projects Hub</h1>
+        <span id="count" aria-live="polite"></span>
       </div>
-      <input id="search" class="search" type="search" placeholder="Search apps…" aria-label="Search apps" autocomplete="off">
+      <div class="tools">
+        <div class="seg" role="group" aria-label="Layout">
+          <button type="button" id="view-grid" aria-pressed="true">Grid</button>
+          <button type="button" id="view-list" aria-pressed="false">List</button>
+        </div>
+        <button type="button" class="icon-btn" id="theme" aria-label="Switch to dark theme" title="Toggle light/dark"></button>
+      </div>
+    </header>
+
+    <div class="bar">
+      <div class="searchwrap">
+        <input id="search" class="search" type="search" placeholder="Search apps, e.g. json, time, password…" aria-label="Search apps" autocomplete="off" spellcheck="false">
+        <span class="kbd" aria-hidden="true">/</span>
+      </div>
+      <div class="chips" id="chips" role="group" aria-label="Filter by category"></div>
     </div>
 
     <div id="apps"></div>
-    <p id="empty" class="empty" hidden>No apps match your search.</p>
+    <div id="empty" class="empty" hidden>
+      <p>No apps match your search.</p>
+      <button type="button" id="reset">Clear filters</button>
+    </div>
     <noscript><p class="empty">This page needs JavaScript to list the apps.</p></noscript>
   </main>
 
 <script>
+// ---- data (see CONVENTIONS.md; tested by scripts/hub.test.js) ----
+// DATA-START
 // To add an app: append one entry to APPS (keep entries grouped by category).
 // Categories render in CATEGORIES order; an app whose cat isn't listed there is not shown.
+// Optional: tags (extra search words) and added ('YYYY-MM-DD', shows a "New" badge for 14 days).
 var CATEGORIES = ['Boards', 'Text & Code', 'Converters', 'Generators'];
 var APPS = [
   { cat: 'Boards', icon: '🗂️', title: 'Kanban Board', featured: true, href: './kanban/index.html',
+    tags: ['tasks', 'todo', 'board', 'indexeddb'],
     desc: 'The primary board. Uses IndexedDB for reliable, persistent local storage.' },
   { cat: 'Boards', icon: '📋', title: 'Kanban Local', href: './kanban/kanban-local.html',
+    tags: ['tasks', 'todo', 'board', 'localstorage'],
     desc: 'A simpler localStorage-based version of the same board.' },
-  { cat: 'Boards', icon: '🍅', title: 'Pomodoro Timer', href: './pomodoro-timer/index.html',
+  { cat: 'Boards', icon: '🍅', title: 'Pomodoro Timer', href: './pomodoro-timer/index.html', added: '2026-11-11',
+    tags: ['focus', 'timer', 'productivity', 'streak', 'tasks'],
     desc: 'A focus timer with work/break intervals, a task list, and session streaks.' },
 
   { cat: 'Text & Code', icon: '{ }', title: 'JSON Formatter', href: './jsonFormatter/index.html',
+    tags: ['json', 'format', 'pretty', 'validate'],
     desc: 'Format, inspect, and work with JSON in a focused utility.' },
-  { cat: 'Text & Code', icon: '📝', title: 'Markdown Previewer', href: './markdown-previewer/index.html',
+  { cat: 'Text & Code', icon: '📝', title: 'Markdown Previewer', href: './markdown-previewer/index.html', added: '2026-09-18',
+    tags: ['markdown', 'md', 'html', 'preview'],
     desc: 'Paste Markdown, see a live-rendered preview and copy the generated HTML.' },
-  { cat: 'Text & Code', icon: '.*', title: 'Regex Tester', href: './regex-tester/index.html',
+  { cat: 'Text & Code', icon: '.*', title: 'Regex Tester', href: './regex-tester/index.html', added: '2026-09-22',
+    tags: ['regex', 'regexp', 'pattern', 'match'],
     desc: 'Test a regex against sample text with live match highlighting and group breakdown.' },
-  { cat: 'Text & Code', icon: '±', title: 'Text Diff Checker', href: './diff-checker/index.html',
+  { cat: 'Text & Code', icon: '±', title: 'Text Diff Checker', href: './diff-checker/index.html', added: '2026-09-28',
+    tags: ['diff', 'compare', 'difference'],
     desc: 'Compare two blocks of text and highlight line- and word-level differences.' },
-  { cat: 'Text & Code', icon: '🔤', title: 'Base64 / URL Encoder-Decoder', href: './base64-url-tool/index.html',
+  { cat: 'Text & Code', icon: '🔤', title: 'Base64 / URL Encoder-Decoder', href: './base64-url-tool/index.html', added: '2026-10-05',
+    tags: ['base64', 'url', 'encode', 'decode', 'uri'],
     desc: 'Encode or decode text as Base64 or URI components.' },
-  { cat: 'Text & Code', icon: '🪪', title: 'JWT Decoder', href: './jwt-decoder/index.html',
+  { cat: 'Text & Code', icon: '🪪', title: 'JWT Decoder', href: './jwt-decoder/index.html', added: '2026-11-04',
+    tags: ['jwt', 'token', 'auth', 'decode', 'json'],
     desc: "Decode a JWT's header and payload for inspection (no signature verification)." },
-  { cat: 'Text & Code', icon: 'Aa', title: 'Text Case Converter', href: './text-case-converter/index.html',
+  { cat: 'Text & Code', icon: 'Aa', title: 'Text Case Converter', href: './text-case-converter/index.html', added: '2026-10-27',
+    tags: ['camelcase', 'snake_case', 'kebab', 'uppercase', 'lowercase'],
     desc: 'Convert text between camelCase, snake_case, kebab-case, Title Case, and CONSTANT_CASE.' },
-  { cat: 'Text & Code', icon: '🔢', title: 'Word Counter & Readability', href: './word-counter/index.html',
+  { cat: 'Text & Code', icon: '🔢', title: 'Word Counter & Readability', href: './word-counter/index.html', added: '2026-11-10',
+    tags: ['words', 'characters', 'reading time', 'flesch', 'count'],
     desc: 'Count words, characters, and sentences, and estimate reading time and grade-level readability.' },
 
-  { cat: 'Converters', icon: '⇄', title: 'CSV ⇄ JSON Converter', href: './csv-json-converter/index.html',
+  { cat: 'Converters', icon: '⇄', title: 'CSV ⇄ JSON Converter', href: './csv-json-converter/index.html', added: '2026-10-19',
+    tags: ['csv', 'json', 'spreadsheet', 'convert'],
     desc: 'Convert CSV to JSON and back, with header detection and type inference.' },
-  { cat: 'Converters', icon: '🕒', title: 'Timestamp / Epoch Converter', href: './timestamp-converter/index.html',
+  { cat: 'Converters', icon: '🕒', title: 'Timestamp / Epoch Converter', href: './timestamp-converter/index.html', added: '2026-10-20',
+    tags: ['time', 'date', 'unix', 'epoch', 'iso 8601', 'utc'],
     desc: 'Convert between Unix epoch, ISO 8601, and human-readable local/UTC time.' },
-  { cat: 'Converters', icon: '🎨', title: 'Color Converter & Contrast Checker', href: './color-tools/index.html',
+  { cat: 'Converters', icon: '🎨', title: 'Color Converter & Contrast Checker', href: './color-tools/index.html', added: '2026-09-28',
+    tags: ['color', 'hex', 'rgb', 'hsl', 'wcag', 'accessibility'],
     desc: 'Convert between HEX/RGB/HSL and check WCAG contrast ratios for a foreground/background pair.' },
-  { cat: 'Converters', icon: '📏', title: 'Unit Converter', href: './unit-converter/index.html',
+  { cat: 'Converters', icon: '📏', title: 'Unit Converter', href: './unit-converter/index.html', added: '2026-09-30',
+    tags: ['length', 'weight', 'temperature', 'volume', 'metric'],
     desc: 'Convert length, weight, temperature, and volume between common units.' },
 
-  { cat: 'Generators', icon: '🔐', title: 'Password Generator & Strength Checker', href: './password-generator/index.html',
+  { cat: 'Generators', icon: '🔐', title: 'Password Generator & Strength Checker', href: './password-generator/index.html', added: '2026-10-13',
+    tags: ['password', 'random', 'security', 'entropy'],
     desc: 'Generate strong random passwords and estimate the strength of a typed one.' },
-  { cat: 'Generators', icon: '🆔', title: 'UUID Generator', href: './uuid-generator/index.html',
+  { cat: 'Generators', icon: '🆔', title: 'UUID Generator', href: './uuid-generator/index.html', added: '2026-10-21',
+    tags: ['uuid', 'guid', 'id', 'random', 'v4', 'v7'],
     desc: 'Generate v4 (random) and v7 (time-ordered) UUIDs in bulk.' }
 ];
+// DATA-END
 
-function el(tag, cls, text) {
-  var n = document.createElement(tag);
-  if (cls) n.className = cls;
-  if (text !== undefined) n.textContent = text;
-  return n;
+// ---- core (DOM-free; tested by scripts/hub.test.js) ----
+// CORE-START
+var NEW_DAYS = 14, MAX_QUERY = 100;
+
+// Lowercase and strip accents so "cafe" finds "café".
+function norm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase(); }
+function terms(q) { return norm(q).split(/\s+/).filter(Boolean); }
+function slug(s) { return norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+
+// -1 = no match. Every term must appear somewhere; title hits rank higher than tag or description hits.
+function score(app, ts) {
+  var title = norm(app.title);
+  var tags = (app.tags || []).map(norm);
+  var hay = [title, norm(app.desc), tags.join(' '), norm(app.cat)].join(' ');
+  var s = 0;
+  for (var i = 0; i < ts.length; i++) {
+    var t = ts[i];
+    if (hay.indexOf(t) === -1) return -1;
+    if (title.indexOf(t) === 0) s += 4;
+    else if ((' ' + title).indexOf(' ' + t) !== -1) s += 3;
+    else if (title.indexOf(t) !== -1) s += 2;
+    else if (tags.indexOf(t) !== -1) s += 1;
+  }
+  return s;
 }
 
-function cardFor(app) {
-  var a = el('a', 'card' + (app.featured ? ' card-featured' : ''));
-  a.href = app.href;
-  a.appendChild(el('span', 'icon', app.icon));
-  a.appendChild(el('h4', '', app.title));
-  a.appendChild(el('p', '', app.desc));
-  return a;
+// cat = category name or null. With a query the result is ranked best-first (ties keep list order).
+function search(apps, q, cat) {
+  var ts = terms(q);
+  var list = apps.filter(function (a) { return !cat || a.cat === cat; });
+  if (!ts.length) return list;
+  return list.map(function (a, i) { return { a: a, i: i, s: score(a, ts) }; })
+    .filter(function (x) { return x.s >= 0; })
+    .sort(function (x, y) { return y.s - x.s || x.i - y.i; })
+    .map(function (x) { return x.a; });
 }
 
-function render(query) {
-  var q = (query || '').trim().toLowerCase();
-  var root = document.getElementById('apps');
-  root.textContent = '';
-  var total = 0;
-  CATEGORIES.forEach(function (cat) {
-    var matches = APPS.filter(function (app) {
-      return app.cat === cat && (!q || (app.title + ' ' + app.desc).toLowerCase().indexOf(q) !== -1);
+// Per-category match counts for the current query, plus the total across categories.
+function countsByCategory(apps, q, categories) {
+  var out = { total: search(apps, q, null).length };
+  categories.forEach(function (c) { out[c] = search(apps, q, c).length; });
+  return out;
+}
+
+// True for an `added` date (YYYY-MM-DD) from 0 to `days` days before `now`.
+function isNew(app, now, days) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(app && app.added || '');
+  if (!m) return false;
+  var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) return false; // e.g. 2026-02-31
+  var today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  var diff = (today - d.getTime()) / 86400000;
+  return diff >= 0 && diff <= (days == null ? NEW_DAYS : days);
+}
+
+// Shareable state: "#cat=converters&q=json". Unknown categories and malformed input are ignored.
+function parseHash(hash, categories) {
+  var p;
+  try { p = new URLSearchParams(String(hash || '').replace(/^#/, '')); } catch (e) { p = new URLSearchParams(''); }
+  var want = p.get('cat');
+  var cat = categories.filter(function (c) { return slug(c) === want; })[0] || null;
+  return { cat: cat, q: Array.from(p.get('q') || '').slice(0, MAX_QUERY).join('') };
+}
+function buildHash(cat, q) {
+  var p = new URLSearchParams();
+  if (cat) p.set('cat', slug(cat));
+  if (String(q || '').trim()) p.set('q', Array.from(String(q)).slice(0, MAX_QUERY).join(''));
+  var s = p.toString();
+  return s ? '#' + s : '';
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  };
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } }
+  };
+
+  var initial = parseHash(location.hash, CATEGORIES);
+  var state = { cat: initial.cat, q: initial.q, view: store.get('hub-view') === 'list' ? 'list' : 'grid' };
+  var now = new Date();
+
+  function cardFor(app, showCat) {
+    var a = el('a', 'card' + (app.featured ? ' card-featured' : ''));
+    a.href = app.href;
+    a.appendChild(el('span', 'icon', app.icon));
+    var body = el('div', 'body');
+    var title = el('div', 'title');
+    title.appendChild(el('h4', '', app.title));
+    if (isNew(app, now)) title.appendChild(el('span', 'badge', 'New'));
+    body.appendChild(title);
+    body.appendChild(el('p', '', app.desc));
+    if (showCat) body.appendChild(el('span', 'cat-tag', app.cat));
+    a.appendChild(body);
+    return a;
+  }
+
+  function renderChips(counts) {
+    var host = $('chips'); host.textContent = '';
+    [null].concat(CATEGORIES).forEach(function (c) {
+      var n = c ? counts[c] : counts.total;
+      var b = el('button', 'chip' + (n === 0 ? ' none' : ''), c || 'All');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(state.cat === c));
+      b.appendChild(el('span', '', String(n)));
+      b.addEventListener('click', function () { state.cat = c; render(); });
+      host.appendChild(b);
     });
-    if (!matches.length) return;
-    total += matches.length;
-    var section = el('section', 'category');
-    var h = el('h3', '', cat);
-    h.appendChild(el('span', '', String(matches.length)));
-    section.appendChild(h);
-    var grid = el('div', 'grid');
-    matches.forEach(function (app) { grid.appendChild(cardFor(app)); });
-    section.appendChild(grid);
-    root.appendChild(section);
-  });
-  document.getElementById('empty').hidden = total !== 0;
-  document.getElementById('count').textContent = q
-    ? total + ' of ' + APPS.length + ' apps'
-    : APPS.length + ' apps, published directly from GitHub Pages.';
-}
+  }
 
-document.getElementById('search').addEventListener('input', function (e) { render(e.target.value); });
-render('');
+  function render() {
+    var results = search(APPS, state.q, state.cat);
+    var root = $('apps'); root.textContent = '';
+    var container = function () { return el('div', state.view === 'list' ? 'list' : 'grid'); };
+    if (state.q.trim()) {
+      // Searching: one ranked list, so the first card is the one Enter opens.
+      var wrap = el('div', 'results'), box = container();
+      results.forEach(function (app) { box.appendChild(cardFor(app, true)); });
+      wrap.appendChild(box); root.appendChild(wrap);
+    } else {
+      CATEGORIES.forEach(function (cat) {
+        var items = results.filter(function (a) { return a.cat === cat; });
+        if (!items.length) return;
+        var section = el('section', 'category');
+        var h = el('h3', '', cat); h.appendChild(el('span', '', String(items.length)));
+        section.appendChild(h);
+        var box = container();
+        items.forEach(function (app) { box.appendChild(cardFor(app, false)); });
+        section.appendChild(box); root.appendChild(section);
+      });
+    }
+    renderChips(countsByCategory(APPS, state.q, CATEGORIES));
+    $('empty').hidden = results.length !== 0;
+    $('count').textContent = results.length === APPS.length ? APPS.length + ' apps' : results.length + ' of ' + APPS.length + ' apps';
+    if ($('search').value !== state.q) $('search').value = state.q;
+    $('view-grid').setAttribute('aria-pressed', String(state.view === 'grid'));
+    $('view-list').setAttribute('aria-pressed', String(state.view === 'list'));
+    try {
+      var h2 = buildHash(state.cat, state.q);
+      if (h2 !== location.hash && (h2 || location.hash)) history.replaceState(null, '', h2 || location.pathname + location.search);
+    } catch (e) { /* history unavailable (e.g. sandboxed frame) */ }
+  }
+
+  // Layout toggle
+  function setView(v) { state.view = v; store.set('hub-view', v); render(); }
+  $('view-grid').addEventListener('click', function () { setView('grid'); });
+  $('view-list').addEventListener('click', function () { setView('list'); });
+
+  // Theme toggle: follows the system until the user picks one.
+  var htmlEl = document.documentElement;
+  var systemDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function isDark() {
+    var t = htmlEl.getAttribute('data-theme');
+    return t ? t === 'dark' : !!(systemDark && systemDark.matches);
+  }
+  function paintThemeButton() {
+    var dark = isDark(), b = $('theme');
+    b.textContent = dark ? '☀️' : '🌙';
+    b.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+  }
+  $('theme').addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    htmlEl.setAttribute('data-theme', next); store.set('hub-theme', next); paintThemeButton();
+  });
+  if (systemDark && systemDark.addEventListener) systemDark.addEventListener('change', paintThemeButton);
+
+  // Search, keyboard shortcuts, reset
+  $('search').addEventListener('input', function (e) { state.q = e.target.value; render(); });
+  $('search').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && state.q.trim()) {
+      var first = search(APPS, state.q, state.cat)[0];
+      if (first) location.href = first.href;
+    } else if (e.key === 'Escape') {
+      state.q = ''; e.target.value = ''; render(); e.target.blur();
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target && e.target.tagName || '').toLowerCase();
+    var typing = tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable);
+    if ((e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
+      e.preventDefault(); $('search').focus(); $('search').select();
+    }
+  });
+  $('reset').addEventListener('click', function () { state.q = ''; state.cat = null; render(); $('search').focus(); });
+  window.addEventListener('hashchange', function () {
+    var p = parseHash(location.hash, CATEGORIES);
+    if (p.cat !== state.cat || p.q !== state.q) { state.cat = p.cat; state.q = p.q; render(); }
+  });
+
+  paintThemeButton();
+  render();
+}
 </script>
 </body>
 </html>
