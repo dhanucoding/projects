@@ -117,7 +117,8 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
     one-liner: Count words/characters/sentences and estimate reading time and grade-level readability.
     notes: Implement a simple Flesch-Kincaid style estimate; live stats as you type.
 
-15. status: pending
+15. status: done
+    shipped: 2026-11-11 (branch app/pomodoro-timer)
     slug: pomodoro-timer
     name: Pomodoro Timer
     one-liner: A focus timer with work/break intervals and a running task list.

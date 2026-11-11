@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pomodoro Timer</title>
+<style>
+  :root { --bg:#f6f1ea; --card:#fffdf9; --ink:#2b2622; --muted:#7a6f64; --accent:#c4562b; --line:#e4dacd; --break:#2f7d5b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  body.break { --accent: var(--break); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  h2 { margin: 0 0 10px; font-size: 1rem; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .timer { text-align:center; }
+  .phase { color: var(--accent); font-weight:600; letter-spacing:.04em; text-transform:uppercase; font-size:.85rem; }
+  .clock { font-size: 4.5rem; font-weight:600; font-variant-numeric: tabular-nums; line-height:1.1; margin:6px 0; }
+  .current { color: var(--muted); min-height:1.4em; margin-bottom:12px; }
+  .controls { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  button { padding:6px 12px; border:1px solid var(--accent); background:transparent; color:var(--accent); border-radius:8px; font:inherit; font-size:.9rem; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; padding:8px 22px; }
+  button:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  input[type=number], input[type=text] { padding:6px 8px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; color:var(--ink); }
+  input[type=number] { width:70px; }
+  .settings { display:flex; gap:14px; flex-wrap:wrap; }
+  .settings label { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:4px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:#fff; }
+  .stat .num { font-size:1.3rem; font-weight:600; font-variant-numeric: tabular-nums; }
+  .stat .label { color:var(--muted); font-size:.8rem; }
+  .addrow { display:flex; gap:8px; margin-bottom:10px; }
+  .addrow input { flex:1; }
+  ul { list-style:none; margin:0; padding:0; }
+  li.task { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--line); }
+  li.task:first-child { border-top:0; }
+  li.task .text { flex:1; word-break:break-word; }
+  li.task.done .text { text-decoration:line-through; color:var(--muted); }
+  li.task.active .text { font-weight:600; }
+  .count { color:var(--muted); font-size:.8rem; font-variant-numeric: tabular-nums; }
+  .hint { color: var(--muted); font-size:.82rem; margin-top:8px; }
+  .empty { color: var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pomodoro Timer</h1>
+  <p class="sub">Focus in intervals, track tasks, and keep a streak. Everything runs and stays in your browser.</p>
+
+  <div class="panel timer">
+    <div class="phase" id="phase">Focus</div>
+    <div class="clock" id="clock" role="timer" aria-live="off">25:00</div>
+    <div class="current" id="current"></div>
+    <div class="controls">
+      <button class="primary" id="start" type="button">Start</button>
+      <button id="reset" type="button">Reset</button>
+      <button id="skip" type="button">Skip</button>
+    </div>
+    <div class="hint" id="status" role="status"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Tasks</h2>
+    <form class="addrow" id="taskForm">
+      <input type="text" id="taskInput" aria-label="New task" placeholder="What are you working on?" maxlength="200">
+      <button type="submit">Add</button>
+    </form>
+    <ul id="tasks"></ul>
+    <div class="hint">Click “Focus on this” to credit finished focus sessions to a task.</div>
+  </div>
+
+  <div class="panel" aria-live="polite">
+    <h2>Progress</h2>
+    <div class="grid" id="stats"></div>
+    <div style="margin-top:10px"><button id="clearHistory" type="button">Clear history</button></div>
+  </div>
+
+  <div class="panel">
+    <h2>Settings (minutes)</h2>
+    <div class="settings">
+      <label>Focus <input type="number" id="s-work" min="1" max="180"></label>
+      <label>Short break <input type="number" id="s-short" min="1" max="180"></label>
+      <label>Long break <input type="number" id="s-long" min="1" max="180"></label>
+      <label>Sessions before long break <input type="number" id="s-cycles" min="2" max="10"></label>
+    </div>
+    <div class="hint">Changing a setting resets the current interval.</div>
+  </div>
+</main>
+
+<script>
+// ---- core (tested by test.js; keep free of DOM access) ----
+// CORE-START
+var DEFAULTS = { work: 25, short: 5, long: 15, cycles: 4 };
+var LIMITS = { work: [1, 180], short: [1, 180], long: [1, 180], cycles: [2, 10] };
+var MAX_HISTORY = 2000, MAX_TASKS = 200, MAX_TASK_LEN = 200;
+
+// Clamp every field to its range; anything missing or non-numeric falls back to the default.
+function sanitizeSettings(obj) {
+  var out = {};
+  Object.keys(DEFAULTS).forEach(function (k) {
+    var v = obj && typeof obj === 'object' ? Number(obj[k]) : NaN;
+    if (!isFinite(v) || obj[k] === '' || obj[k] === null) v = DEFAULTS[k];
+    v = Math.round(v);
+    out[k] = Math.min(LIMITS[k][1], Math.max(LIMITS[k][0], v));
+  });
+  return out;
+}
+
+function phaseSeconds(phase, settings) { return settings[phase] * 60; }
+
+// completedWork counts focus sessions including the one that just ended.
+function nextPhase(phase, completedWork, settings) {
+  if (phase !== 'work') return 'work';
+  return completedWork > 0 && completedWork % settings.cycles === 0 ? 'long' : 'short';
+}
+
+// "MM:SS"; bad or negative input shows 00:00. Minutes may exceed 99 (up to 180:00).
+function fmtClock(sec) {
+  sec = Number(sec);
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  sec = Math.ceil(sec);
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+// Remaining whole seconds for a running timer; timestamps (not tick counts) avoid
+// drift when the tab is throttled in the background.
+function remainingSeconds(endAt, now) { return Math.max(0, Math.ceil((endAt - now) / 1000)); }
+
+function fmtNum(n) { return typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—'; }
+
+// 135 -> "2 h 15 min", 45 -> "45 min", 0 -> "0 min"
+function fmtMinutes(min) {
+  min = Math.max(0, Math.round(Number(min) || 0));
+  if (min < 60) return fmtNum(min) + ' min';
+  var h = Math.floor(min / 60), m = min % 60;
+  return fmtNum(h) + ' h' + (m ? ' ' + m + ' min' : '');
+}
+
+// Local calendar day as YYYY-MM-DD.
+function dayKey(date) {
+  var d = date instanceof Date ? date : new Date(date);
+  var p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+// Day arithmetic on keys via UTC so DST shifts never skip or repeat a day.
+function shiftDay(key, delta) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!m) return key;
+  var t = Date.UTC(+m[1], +m[2] - 1, +m[3]) + delta * 86400000;
+  var d = new Date(t), p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
+}
+
+// history entry: { day, minutes, task, at }. Newest kept, capped.
+function recordSession(history, entry) {
+  var list = (Array.isArray(history) ? history : []).concat([entry]);
+  return list.length > MAX_HISTORY ? list.slice(list.length - MAX_HISTORY) : list;
+}
+
+function todayStats(history, today) {
+  var sessions = 0, minutes = 0;
+  (history || []).forEach(function (h) { if (h.day === today) { sessions++; minutes += h.minutes; } });
+  return { sessions: sessions, minutes: minutes };
+}
+
+// Consecutive days with at least one focus session, ending today. If today has none
+// yet, the streak still counts through yesterday so it isn't zero all morning.
+function streak(history, today) {
+  var days = {};
+  (history || []).forEach(function (h) { days[h.day] = true; });
+  var cursor = days[today] ? today : shiftDay(today, -1), n = 0;
+  while (days[cursor]) { n++; cursor = shiftDay(cursor, -1); }
+  return n;
+}
+
+function bestStreak(history) {
+  var keys = Object.keys((history || []).reduce(function (a, h) { a[h.day] = 1; return a; }, {})).sort();
+  var best = 0, run = 0, prev = null;
+  keys.forEach(function (k) {
+    run = prev && shiftDay(prev, 1) === k ? run + 1 : 1;
+    if (run > best) best = run;
+    prev = k;
+  });
+  return best;
+}
+
+function addTask(tasks, text, id) {
+  var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  var list = Array.isArray(tasks) ? tasks : [];
+  if (!t || list.length >= MAX_TASKS) return list;
+  t = Array.from(t).slice(0, MAX_TASK_LEN).join('');
+  return list.concat([{ id: id, text: t, done: false, pomodoros: 0 }]);
+}
+function toggleTask(tasks, id) { return tasks.map(function (t) { return t.id === id ? Object.assign({}, t, { done: !t.done }) : t; }); }
+function removeTask(tasks, id) { return tasks.filter(function (t) { return t.id !== id; }); }
+function creditTask(tasks, id) { return tasks.map(function (t) { return t.id === id ? Object.assign({}, t, { pomodoros: t.pomodoros + 1 }) : t; }); }
+
+// Parse saved JSON defensively: bad or hostile data yields defaults, never a throw.
+function loadState(json) {
+  var raw = null;
+  try { raw = JSON.parse(json); } catch (e) { raw = null; }
+  if (!raw || typeof raw !== 'object') raw = {};
+  var str = function (v, max) { return typeof v === 'string' ? Array.from(v).slice(0, max).join('') : ''; };
+  var tasks = (Array.isArray(raw.tasks) ? raw.tasks : []).filter(function (t) {
+    return t && typeof t === 'object' && typeof t.id === 'string' && typeof t.text === 'string';
+  }).slice(0, MAX_TASKS).map(function (t) {
+    return { id: str(t.id, 40), text: str(t.text, MAX_TASK_LEN), done: t.done === true, pomodoros: Math.max(0, Math.floor(Number(t.pomodoros)) || 0) };
+  });
+  var history = (Array.isArray(raw.history) ? raw.history : []).filter(function (h) {
+    return h && typeof h.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h.day) && isFinite(Number(h.minutes));
+  }).slice(-MAX_HISTORY).map(function (h) {
+    return { day: h.day, minutes: Math.max(0, Number(h.minutes)), task: str(h.task, MAX_TASK_LEN), at: Number(h.at) || 0 };
+  });
+  var activeId = typeof raw.activeId === 'string' && tasks.some(function (t) { return t.id === raw.activeId; }) ? raw.activeId : null;
+  return { settings: sanitizeSettings(raw.settings), tasks: tasks, history: history, activeId: activeId };
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = 'pomodoro-timer-v1';
+  var state = (function () {
+    try { return loadState(localStorage.getItem(KEY)); } catch (e) { return loadState(null); }
+  })();
+  var save = function () {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable: keep in memory */ }
+  };
+
+  var phase = 'work', completedWork = 0, endAt = null, remaining = phaseSeconds('work', state.settings), ticker = null;
+  var LABELS = { work: 'Focus', short: 'Short break', long: 'Long break' };
+
+  var beep = function () {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      var ctx = new Ctx(), osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.frequency.value = 880; gain.gain.value = 0.2;
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.4);
+      setTimeout(function () { ctx.close(); }, 800);
+    } catch (e) { /* audio unavailable */ }
+  };
+  var notify = function (msg) {
+    try { if (window.Notification && Notification.permission === 'granted') new Notification('Pomodoro Timer', { body: msg }); } catch (e) { /* ignore */ }
+  };
+
+  var activeTask = function () { return state.tasks.filter(function (t) { return t.id === state.activeId; })[0]; };
+
+  var renderTimer = function () {
+    var secs = endAt ? remainingSeconds(endAt, Date.now()) : remaining;
+    $('clock').textContent = fmtClock(secs);
+    $('phase').textContent = LABELS[phase];
+    $('start').textContent = endAt ? 'Pause' : (secs < phaseSeconds(phase, state.settings) ? 'Resume' : 'Start');
+    document.body.classList.toggle('break', phase !== 'work');
+    document.title = (endAt ? fmtClock(secs) + ' · ' : '') + 'Pomodoro Timer';
+    var t = activeTask();
+    $('current').textContent = phase === 'work' && t ? 'Focusing on: ' + t.text : '';
+  };
+
+  var renderStats = function () {
+    var today = dayKey(new Date()), ts = todayStats(state.history, today), host = $('stats');
+    host.textContent = '';
+    [['Sessions today', fmtNum(ts.sessions)], ['Focus today', fmtMinutes(ts.minutes)],
+     ['Current streak', fmtNum(streak(state.history, today)) + ' d'], ['Best streak', fmtNum(bestStreak(state.history)) + ' d'],
+     ['All-time sessions', fmtNum(state.history.length)]].forEach(function (p) {
+      var d = document.createElement('div'); d.className = 'stat';
+      var n = document.createElement('div'); n.className = 'num'; n.textContent = p[1];
+      var l = document.createElement('div'); l.className = 'label'; l.textContent = p[0];
+      d.appendChild(n); d.appendChild(l); host.appendChild(d);
+    });
+  };
+
+  var renderTasks = function () {
+    var ul = $('tasks'); ul.textContent = '';
+    if (!state.tasks.length) { var e = document.createElement('li'); e.className = 'empty'; e.textContent = 'No tasks yet.'; ul.appendChild(e); }
+    state.tasks.forEach(function (t) {
+      var li = document.createElement('li');
+      li.className = 'task' + (t.done ? ' done' : '') + (t.id === state.activeId ? ' active' : '');
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.done;
+      cb.setAttribute('aria-label', 'Mark done: ' + t.text);
+      cb.addEventListener('change', function () { state.tasks = toggleTask(state.tasks, t.id); save(); renderTasks(); });
+      var text = document.createElement('span'); text.className = 'text'; text.textContent = t.text;
+      var cnt = document.createElement('span'); cnt.className = 'count'; cnt.textContent = '🍅 ' + fmtNum(t.pomodoros);
+      var focus = document.createElement('button'); focus.type = 'button';
+      focus.textContent = t.id === state.activeId ? 'Focusing' : 'Focus on this';
+      focus.addEventListener('click', function () { state.activeId = t.id === state.activeId ? null : t.id; save(); renderTasks(); renderTimer(); });
+      var del = document.createElement('button'); del.type = 'button'; del.textContent = '✕';
+      del.setAttribute('aria-label', 'Delete task: ' + t.text);
+      del.addEventListener('click', function () {
+        state.tasks = removeTask(state.tasks, t.id);
+        if (state.activeId === t.id) state.activeId = null;
+        save(); renderTasks(); renderTimer();
+      });
+      li.appendChild(cb); li.appendChild(text); li.appendChild(cnt); li.appendChild(focus); li.appendChild(del);
+      ul.appendChild(li);
+    });
+  };
+
+  var stop = function () { if (ticker) { clearInterval(ticker); ticker = null; } endAt = null; };
+  var enterPhase = function (p) { stop(); phase = p; remaining = phaseSeconds(p, state.settings); renderTimer(); };
+
+  var complete = function () {
+    var finished = phase, t = activeTask();
+    if (finished === 'work') {
+      completedWork++;
+      state.history = recordSession(state.history, { day: dayKey(new Date()), minutes: state.settings.work, task: t ? t.text : '', at: Date.now() });
+      if (t) state.tasks = creditTask(state.tasks, t.id);
+      save(); renderTasks(); renderStats();
+    }
+    var next = nextPhase(finished, completedWork, state.settings);
+    beep(); notify(finished === 'work' ? 'Focus session done. Time for a ' + LABELS[next].toLowerCase() + '.' : 'Break over. Ready to focus?');
+    enterPhase(next);
+    $('status').textContent = finished === 'work' ? 'Session complete. Press Start for your break.' : 'Break over. Press Start to focus.';
+  };
+
+  var tick = function () {
+    if (endAt && remainingSeconds(endAt, Date.now()) <= 0) complete(); else renderTimer();
+  };
+
+  $('start').addEventListener('click', function () {
+    $('status').textContent = '';
+    if (endAt) { remaining = remainingSeconds(endAt, Date.now()); stop(); renderTimer(); return; }
+    try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) { /* ignore */ }
+    endAt = Date.now() + remaining * 1000;
+    ticker = setInterval(tick, 250);
+    renderTimer();
+  });
+  $('reset').addEventListener('click', function () { $('status').textContent = ''; enterPhase(phase); });
+  $('skip').addEventListener('click', function () {
+    $('status').textContent = '';
+    // Skipping never credits a session.
+    enterPhase(nextPhase(phase, completedWork, state.settings));
+  });
+
+  $('taskForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    state.tasks = addTask(state.tasks, $('taskInput').value, id);
+    $('taskInput').value = ''; save(); renderTasks();
+  });
+  $('clearHistory').addEventListener('click', function () {
+    if ($('clearHistory').dataset.armed !== '1') {
+      $('clearHistory').dataset.armed = '1'; $('clearHistory').textContent = 'Click again to confirm';
+      setTimeout(function () { $('clearHistory').dataset.armed = ''; $('clearHistory').textContent = 'Clear history'; }, 4000);
+      return;
+    }
+    state.history = []; $('clearHistory').dataset.armed = ''; $('clearHistory').textContent = 'Clear history'; save(); renderStats();
+  });
+
+  ['work', 'short', 'long', 'cycles'].forEach(function (k) {
+    var el = $('s-' + k); el.value = state.settings[k];
+    el.addEventListener('change', function () {
+      var next = Object.assign({}, state.settings); next[k] = el.value;
+      state.settings = sanitizeSettings(next); el.value = state.settings[k]; save(); enterPhase(phase);
+    });
+  });
+
+  renderTimer(); renderTasks(); renderStats();
+}
+</script>
+</body>
+</html>
