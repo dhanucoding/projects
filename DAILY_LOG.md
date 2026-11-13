@@ -5,6 +5,7 @@ and `IDEAS.md`). Newest first.
 
 | Date | App | Folder | PR |
 |------|-----|--------|----|
+| 2026-11-13 | Cron Expression Builder & Explainer | `cron-explainer/` | branch: `app/cron-explainer` |
 | 2026-11-12 | Habit Tracker | `habit-tracker/` | branch: `app/habit-tracker` |
 | 2026-11-11 | Pomodoro Timer | `pomodoro-timer/` | branch: `app/pomodoro-timer` |
 | 2026-11-10 | Word Counter & Readability | `word-counter/` | branch: `app/word-counter` |
