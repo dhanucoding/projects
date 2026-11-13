@@ -131,7 +131,8 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
     one-liner: Track daily habits with a checklist and streak counters.
     notes: localStorage-backed, calendar-style heatmap view like a mini GitHub contribution graph.
 
-17. status: pending
+17. status: done
+    shipped: 2026-11-13 (branch app/cron-explainer)
     slug: cron-explainer
     name: Cron Expression Builder & Explainer
     one-liner: Build a cron expression with a form, or paste one to get a plain-English explanation.

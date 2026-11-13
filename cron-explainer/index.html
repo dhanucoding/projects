@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Cron Expression Builder &amp; Explainer</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg:#f6f1ea; --card:#fffdf9; --ink:#2b2622; --muted:#6d625a; --accent:#a85b27; --on-accent:#fff; --line:#e4dacd; --field:#fff; --err:#b3261e; --ok:#1d6b34; --code:#fbf3e8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg:#171412; --card:#211d1a; --ink:#f2eae2; --muted:#ab9f95; --accent:#e8985f; --on-accent:#1a1410; --line:#3a332e; --field:#2a2521; --err:#ff8a80; --ok:#8fdba8; --code:#2a2521;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  h2 { margin: 0 0 10px; font-size: 1rem; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  button, select, input { font:inherit; color:inherit; }
+  button { padding:6px 12px; border:1px solid var(--accent); background:transparent; color:var(--accent); border-radius:8px; font-size:.85rem; cursor:pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  input[type=text], select { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--field); color:var(--ink); }
+  input[aria-invalid="true"] { border-color: var(--err); }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .expr { width:100%; font-size:1.5rem; padding:12px 14px; letter-spacing:.04em; }
+  .toprow { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+  .toprow label { color:var(--muted); font-size:.85rem; }
+  .explain { margin-top:12px; font-size:1.15rem; line-height:1.4; min-height:1.6em; }
+  .explain.bad { color:var(--err); font-size:1rem; }
+  .note { color:var(--muted); font-size:.85rem; margin-top:6px; }
+  .fields { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:10px; }
+  .fields label { display:flex; flex-direction:column; gap:4px; font-size:.8rem; color:var(--muted); }
+  .fields input { width:100%; text-align:center; font-size:1rem; padding:8px 4px; }
+  .fields .hint { font-size:.72rem; min-height:2.2em; }
+  .fields .ferr { color:var(--err); font-size:.75rem; min-height:1.2em; }
+  .runs { list-style:none; margin:10px 0 0; padding:0; }
+  .runs li { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-top:1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .runs li:first-child { border-top:0; }
+  .runs .rel { color:var(--muted); font-size:.85rem; white-space:nowrap; }
+  .runs .empty { color:var(--muted); justify-content:flex-start; }
+  details { margin-top:4px; }
+  summary { cursor:pointer; font-weight:600; }
+  table { border-collapse:collapse; width:100%; margin-top:10px; font-size:.88rem; }
+  td, th { text-align:left; padding:5px 8px; border-top:1px solid var(--line); vertical-align:top; }
+  td:first-child { white-space:nowrap; }
+  code { background:var(--code); padding:1px 5px; border-radius:4px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  @media (max-width: 560px) {
+    .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .expr { font-size:1.15rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cron Expression Builder &amp; Explainer</h1>
+  <p class="sub">Paste a cron expression for a plain-English explanation, or build one field by field. Everything runs in your browser.</p>
+
+  <div class="panel">
+    <div class="toprow">
+      <label for="preset">Start from a preset</label>
+      <select id="preset"></select>
+    </div>
+    <input type="text" id="expr" class="mono expr" aria-label="Cron expression" placeholder="*/15 9-17 * * 1-5" autocomplete="off" spellcheck="false" maxlength="200">
+    <div class="explain" id="explain" role="status" aria-live="polite"></div>
+    <div class="note" id="note"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Build it field by field</h2>
+    <div class="fields" id="fields"></div>
+    <div class="note">Each field takes <code>*</code> (any), <code>5</code>, <code>1,15</code> (list), <code>1-5</code> (range), or <code>*/10</code> (step). A blank field means <code>*</code>.</div>
+  </div>
+
+  <div class="panel">
+    <div class="toprow">
+      <h2 style="margin:0;flex:1">Next runs</h2>
+      <select id="count" aria-label="Number of runs"><option>5</option><option selected>10</option><option>20</option></select>
+      <select id="tz" aria-label="Time zone"></select>
+      <button type="button" id="refresh">Refresh</button>
+    </div>
+    <ol class="runs" id="runs" aria-live="polite"></ol>
+    <div class="note" id="runsNote"></div>
+  </div>
+
+  <div class="panel">
+    <details>
+      <summary>Syntax cheat sheet</summary>
+      <table>
+        <tr><td><code>* * * * *</code></td><td>minute (0–59) · hour (0–23) · day of month (1–31) · month (1–12 or JAN–DEC) · day of week (0–6 or SUN–SAT; 0 and 7 are Sunday)</td></tr>
+        <tr><td><code>*</code> <code>5</code> <code>1,15</code></td><td>any value · one value · a list</td></tr>
+        <tr><td><code>1-5</code> <code>*/10</code> <code>0-30/10</code></td><td>a range · every 10th value · every 10th value within a range</td></tr>
+        <tr><td><code>@daily</code></td><td><code>@yearly</code> <code>@annually</code> <code>@monthly</code> <code>@weekly</code> <code>@daily</code> <code>@midnight</code> <code>@hourly</code></td></tr>
+        <tr><td>Day rule</td><td>If both day-of-month and day-of-week are restricted, the job runs when <em>either</em> matches.</td></tr>
+        <tr><td>Not supported</td><td>Seconds or year fields, Quartz-only <code>L</code> <code>W</code> <code>#</code>, and <code>@reboot</code>. A <code>?</code> is treated as <code>*</code>.</td></tr>
+      </table>
+    </details>
+  </div>
+</main>
+
+<script>
+// ---- core (tested by test.js; keep free of DOM access) ----
+// CORE-START
+var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+var DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+var MAX_INPUT = 200, HORIZON_YEARS = 10, MAX_RUNS = 50;
+
+function nameMap(list, offset) {
+  var o = {};
+  list.forEach(function (n, i) { o[n.slice(0, 3).toUpperCase()] = i + offset; });
+  return o;
+}
+var FIELDS = [
+  { id: 'minute', label: 'Minute',       min: 0, max: 59, top: 59 },
+  { id: 'hour',   label: 'Hour',         min: 0, max: 23, top: 23 },
+  { id: 'dom',    label: 'Day of month', min: 1, max: 31, top: 31 },
+  { id: 'month',  label: 'Month',        min: 1, max: 12, top: 12, names: nameMap(MONTH_NAMES, 1) },
+  { id: 'dow',    label: 'Day of week',  min: 0, max: 7,  top: 6,  names: nameMap(DOW_NAMES, 0), alias7: true }
+];
+var MACROS = {
+  '@yearly': '0 0 1 1 *', '@annually': '0 0 1 1 *', '@monthly': '0 0 1 * *', '@weekly': '0 0 * * 0',
+  '@daily': '0 0 * * *', '@midnight': '0 0 * * *', '@hourly': '0 * * * *'
+};
+var PRESETS = [
+  { label: 'Every minute', expr: '* * * * *' },
+  { label: 'Every 5 minutes', expr: '*/5 * * * *' },
+  { label: 'Every hour', expr: '0 * * * *' },
+  { label: 'Every day at midnight', expr: '0 0 * * *' },
+  { label: 'Weekdays at 9:00', expr: '0 9 * * 1-5' },
+  { label: 'Every 15 minutes, 9–17 on weekdays', expr: '*/15 9-17 * * 1-5' },
+  { label: 'Every Monday at 8:30', expr: '30 8 * * 1' },
+  { label: 'First of the month at midnight', expr: '0 0 1 * *' },
+  { label: 'Every year on January 1st', expr: '0 0 1 1 *' }
+];
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+// Parse one field. Returns { ok, values (sorted, unique), star, raw } or { ok:false, error }.
+function parseField(raw, spec) {
+  var fail = function (msg) { return { ok: false, error: spec.label + ': ' + msg }; };
+  var text = String(raw == null ? '' : raw).replace(/\s+/g, '');
+  if (!text) return fail('value is empty');
+  if (text.length > 100) return fail('value is too long');
+  if (text.indexOf('#') !== -1 || /(^|,)(L|LW|\d+L|\d+W)(,|$)/i.test(text)) return fail('Quartz-only syntax (L, W, #) is not supported');
+  var size = spec.top - spec.min + 1, set = {}, items = text.split(',');
+  var value = function (tok) {
+    if (/^\d+$/.test(tok)) {
+      var v = tok.length > 4 ? Infinity : parseInt(tok, 10);
+      if (v < spec.min || v > spec.max) return { error: fail('value ' + tok + ' is out of range (' + spec.min + '–' + spec.max + ')') };
+      return { v: v };
+    }
+    var named = spec.names && Object.prototype.hasOwnProperty.call(spec.names, tok.toUpperCase()) ? spec.names[tok.toUpperCase()] : undefined;
+    return named === undefined ? { error: fail('"' + tok + '" is not a valid value') } : { v: named };
+  };
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    if (item === '') return fail('empty list item (check for a stray comma)');
+    var m = /^(\*|\?|[A-Za-z0-9]+)(?:-([A-Za-z0-9]+))?(?:\/(\d+))?$/.exec(item);
+    if (!m) return fail('"' + item + '" is not valid');
+    var any = m[1] === '*' || m[1] === '?', step = m[3] === undefined ? 1 : parseInt(m[3], 10), lo, hi;
+    if (m[3] !== undefined && (m[3].length > 4 || step < 1 || step > size)) return fail('step must be between 1 and ' + size);
+    if (any) {
+      if (m[2] !== undefined) return fail('"' + item + '" is not valid');
+      lo = spec.min; hi = spec.top;
+    } else {
+      var a = value(m[1]); if (a.error) return a.error;
+      lo = a.v;
+      if (m[2] !== undefined) {
+        var b = value(m[2]); if (b.error) return b.error;
+        hi = b.v;
+        if (hi < lo) return fail('range ' + m[1] + '-' + m[2] + ' goes backwards');
+      } else hi = m[3] !== undefined ? Math.max(lo, spec.top) : lo; // "5/15" means 5 through the top, every 15
+    }
+    for (var v = lo; v <= hi; v += step) set[spec.alias7 && v === 7 ? 0 : v] = true;
+  }
+  var values = Object.keys(set).map(Number).sort(function (x, y) { return x - y; });
+  return { ok: true, raw: text, values: values, star: /^[*?]/.test(text) };
+}
+
+// Parse a whole expression (5 fields or an @macro). Returns { ok, fields, sets, fieldRaw, macro } or { ok:false, error, errors }.
+function parseExpression(input) {
+  var text = String(input == null ? '' : input).trim();
+  if (!text) return { ok: false, error: 'Enter a cron expression.', errors: {} };
+  if (text.length > MAX_INPUT) return { ok: false, error: 'That expression is too long.', errors: {} };
+  var macro = null, tokens;
+  if (text.charAt(0) === '@') {
+    var key = text.toLowerCase();
+    if (key === '@reboot') return { ok: false, error: '@reboot runs at startup, so it has no schedule to show.', errors: {} };
+    if (!Object.prototype.hasOwnProperty.call(MACROS, key)) return { ok: false, error: 'Unknown shortcut "' + text + '". Try @daily, @hourly, @weekly, @monthly or @yearly.', errors: {} };
+    macro = key; tokens = MACROS[key].split(' ');
+  } else {
+    tokens = text.split(/\s+/);
+    if (tokens.length !== 5) {
+      var hint = tokens.length > 5 ? ' It looks like it has a seconds or year field, which this tool does not support.' : '';
+      return { ok: false, error: 'Expected 5 fields (minute hour day-of-month month day-of-week) but found ' + tokens.length + '.' + hint, errors: {} };
+    }
+  }
+  var fields = {}, errors = {}, firstError = null;
+  FIELDS.forEach(function (spec, i) {
+    var r = parseField(tokens[i], spec);
+    if (r.ok) fields[spec.id] = r; else { errors[spec.id] = r.error; if (!firstError) firstError = r.error; }
+  });
+  if (firstError) return { ok: false, error: firstError, errors: errors, fieldRaw: tokens };
+  var sets = {};
+  FIELDS.forEach(function (spec) {
+    var s = {}; fields[spec.id].values.forEach(function (v) { s[v] = true; }); sets[spec.id] = s;
+  });
+  return { ok: true, fields: fields, sets: sets, fieldRaw: tokens, macro: macro, bothDays: !fields.dom.star && !fields.dow.star };
+}
+
+// Join builder inputs into an expression; blank fields become "*" and inner spaces are dropped.
+function expressionFromFields(list) {
+  return FIELDS.map(function (_, i) {
+    var t = String(list && list[i] != null ? list[i] : '').replace(/\s+/g, '');
+    return t || '*';
+  }).join(' ');
+}
+
+// Vixie rule: with both day fields restricted a day matches if EITHER does; otherwise both must.
+function dayMatches(p, mo, d, dow) {
+  var domOk = !!p.sets.dom[d], dowOk = !!p.sets.dow[dow];
+  return p.bothDays ? (domOk || dowOk) : (domOk && dowOk);
+}
+
+// Next `count` run times strictly after `from`. tz is 'UTC' or 'local'. Search is limited to 10 years,
+// so a schedule that never matches (e.g. Feb 30) returns []. In 'local' time a wall-clock time that
+// doesn't exist (spring-forward gap) is skipped and a repeated one (fall back) appears once.
+function nextRuns(p, from, count, tz) {
+  if (!p || !p.ok || !(from instanceof Date) || isNaN(from.getTime())) return [];
+  count = Math.min(MAX_RUNS, Math.max(1, Math.floor(Number(count)) || 1));
+  var utc = tz === 'UTC';
+  var t = (utc ? Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), from.getUTCHours(), from.getUTCMinutes())
+              : Date.UTC(from.getFullYear(), from.getMonth(), from.getDate(), from.getHours(), from.getMinutes())) + 60000;
+  var horizon = t + HORIZON_YEARS * 366 * 86400000, out = [];
+  while (out.length < count && t <= horizon) {
+    var w = new Date(t), y = w.getUTCFullYear(), mo = w.getUTCMonth() + 1, d = w.getUTCDate(), h = w.getUTCHours(), mi = w.getUTCMinutes();
+    if (!p.sets.month[mo]) { t = Date.UTC(y, mo, 1); continue; }
+    if (!dayMatches(p, mo, d, w.getUTCDay())) { t = Date.UTC(y, mo - 1, d + 1); continue; }
+    if (!p.sets.hour[h]) { t = Date.UTC(y, mo - 1, d, h + 1); continue; }
+    if (!p.sets.minute[mi]) { t += 60000; continue; }
+    var inst;
+    if (utc) inst = new Date(t);
+    else {
+      inst = new Date(y, mo - 1, d, h, mi);
+      if (inst.getFullYear() !== y || inst.getMonth() !== mo - 1 || inst.getDate() !== d || inst.getHours() !== h || inst.getMinutes() !== mi) inst = null;
+    }
+    if (inst && (!out.length || inst.getTime() > out[out.length - 1].getTime())) out.push(inst);
+    t += 60000;
+  }
+  return out;
+}
+
+// ---- plain-English description ----
+function listJoin(a) { return a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+
+// Classify a parsed field as star | single | range | step | list.
+function classify(f, spec) {
+  var v = f.values, n = v.length;
+  if (n === spec.top - spec.min + 1) return { kind: 'star', vals: v };
+  if (n === 1) return { kind: 'single', vals: v };
+  var d = v[1] - v[0], even = true, i;
+  for (i = 2; i < n; i++) if (v[i] - v[i - 1] !== d) { even = false; break; }
+  if (even && d === 1) return { kind: 'range', vals: v, from: v[0], to: v[n - 1] };
+  // Two values only count as a step when they divide the cycle evenly (0,30 yes; 5,40 or 0,45 no).
+  if (even && (n > 2 || (v[0] === spec.min && v[1] + d === spec.top + 1))) return { kind: 'step', vals: v, step: d, from: v[0], to: v[n - 1], full: v[0] === spec.min && v[n - 1] + d > spec.top };
+  return { kind: 'list', vals: v };
+}
+
+function hourSpan(h) {
+  if (h.kind === 'single') return 'from ' + pad2(h.vals[0]) + ':00 through ' + pad2(h.vals[0]) + ':59';
+  if (h.kind === 'range') return 'from ' + pad2(h.from) + ':00 through ' + pad2(h.to) + ':59';
+  return 'during ' + (h.vals.length === 1 ? 'hour ' : 'hours ') + listJoin(h.vals.map(String));
+}
+function minutePhrase(m) { // minute is step or range here
+  if (m.kind === 'step') return 'Every ' + m.step + ' minutes' + (m.full ? '' : ', from minute ' + m.from + ' through ' + m.to);
+  return 'Every minute from minute ' + m.from + ' through ' + m.to;
+}
+
+function timePhrase(m, h) {
+  var mv = m.vals, hv = h.vals, minuteWord = mv.length === 1 ? 'minute ' : 'minutes ';
+  if (m.kind === 'star' && h.kind === 'star') return 'Every minute';
+  if (h.kind === 'star') {
+    if (m.kind === 'step') return m.full ? 'Every ' + m.step + ' minutes' : minutePhrase(m) + ' past every hour';
+    if (m.kind === 'range') return minutePhrase(m) + ' past every hour';
+    return 'At ' + minuteWord + listJoin(mv.map(String)) + ' past every hour';
+  }
+  if (m.kind === 'star') return 'Every minute ' + hourSpan(h);
+  if (mv.length * hv.length <= 8) {
+    var times = [];
+    hv.forEach(function (hh) { mv.forEach(function (mm) { times.push(pad2(hh) + ':' + pad2(mm)); }); });
+    return 'At ' + listJoin(times);
+  }
+  if (m.kind === 'step' || m.kind === 'range') return minutePhrase(m) + ', ' + hourSpan(h);
+  var which = h.kind === 'range' ? 'every hour from ' + h.from + ' through ' + h.to
+    : h.kind === 'step' && h.full ? 'every ' + h.step + ' hours'
+    : 'hours ' + listJoin(hv.map(String));
+  return 'At ' + minuteWord + listJoin(mv.map(String)) + ' past ' + which;
+}
+
+function datePhrases(c) {
+  var out = { dom: '', month: '', dow: '' };
+  var dom = c.dom, mon = c.month, dow = c.dow, ds = function (a) { return listJoin(a.map(String)); };
+  if (dom.kind === 'single') out.dom = 'on day ' + dom.vals[0] + ' of the month';
+  else if (dom.kind === 'range') out.dom = 'on days ' + dom.from + ' through ' + dom.to + ' of the month';
+  else if (dom.kind === 'step' && dom.full) out.dom = 'every ' + dom.step + ' days of the month, starting on day ' + dom.from;
+  else if (dom.kind !== 'star') out.dom = 'on days ' + ds(dom.vals) + ' of the month';
+  var mn = function (v) { return MONTH_NAMES[v - 1]; };
+  if (mon.kind === 'single') out.month = 'in ' + mn(mon.vals[0]);
+  else if (mon.kind === 'range') out.month = 'from ' + mn(mon.from) + ' through ' + mn(mon.to);
+  else if (mon.kind === 'step' && mon.full) out.month = 'every ' + mon.step + ' months';
+  else if (mon.kind !== 'star') out.month = 'in ' + listJoin(mon.vals.map(mn));
+  var dn = function (v) { return DOW_NAMES[v]; };
+  if (dow.kind === 'single') out.dow = 'on ' + dn(dow.vals[0]);
+  else if (dow.kind === 'range') out.dow = dn(dow.from) + ' through ' + dn(dow.to);
+  else if (dow.kind === 'list' && dow.vals.length === 2 && dow.vals[0] === 0 && dow.vals[1] === 6) out.dow = 'on weekends';
+  else if (dow.kind !== 'star') out.dow = 'on ' + listJoin(dow.vals.map(dn));
+  return out;
+}
+
+function describe(p) {
+  if (!p || !p.ok) return '';
+  var c = {};
+  FIELDS.forEach(function (spec) { c[spec.id] = classify(p.fields[spec.id], spec); });
+  var time = timePhrase(c.minute, c.hour), d = datePhrases(c), rest = [];
+  var days = d.dom && d.dow ? d.dom + ', or ' + d.dow : d.dom || d.dow;
+  if (days) rest.push(days);
+  if (d.month) rest.push(d.month);
+  if (!rest.length) return /^At \d\d:\d\d/.test(time) ? time + ', every day' : time;
+  return time + ', ' + rest.join(', ');
+}
+
+// ---- display helpers ----
+function fmtRun(date, tz) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+  var opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short' };
+  if (tz === 'UTC') opts.timeZone = 'UTC';
+  return new Intl.DateTimeFormat('en-US', opts).format(date);
+}
+function fmtRelative(ms) {
+  if (typeof ms !== 'number' || !isFinite(ms)) return '';
+  if (ms < 60000) return 'in under a minute';
+  var min = Math.round(ms / 60000);
+  if (min < 60) return 'in ' + min + ' min';
+  var h = Math.floor(min / 60), m = min % 60;
+  if (h < 48) return 'in ' + h + ' h' + (m ? ' ' + m + ' min' : '');
+  return 'in ' + Math.round(h / 24).toLocaleString('en-US') + ' days';
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  };
+  var HINTS = { minute: '0–59', hour: '0–23', dom: '1–31', month: '1–12 or JAN–DEC', dow: '0–6 or SUN–SAT' };
+  var inputs = {};
+
+  FIELDS.forEach(function (spec) {
+    var label = el('label'); label.appendChild(el('span', '', spec.label));
+    var inp = el('input', 'mono'); inp.type = 'text'; inp.placeholder = '*'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.maxLength = 100;
+    inp.setAttribute('aria-label', spec.label);
+    var hint = el('span', 'hint', HINTS[spec.id]), err = el('span', 'ferr'); err.id = 'err-' + spec.id;
+    inp.setAttribute('aria-describedby', err.id);
+    inputs[spec.id] = inp;
+    inp.addEventListener('input', function () {
+      $('expr').value = expressionFromFields(FIELDS.map(function (s) { return inputs[s.id].value; }));
+      render(false);
+    });
+    label.appendChild(inp); label.appendChild(hint); label.appendChild(err);
+    $('fields').appendChild(label);
+  });
+
+  var emptyOpt = el('option', '', 'Choose…'); emptyOpt.value = '';
+  $('preset').appendChild(emptyOpt);
+  PRESETS.forEach(function (pr) { var o = el('option', '', pr.label + '  (' + pr.expr + ')'); o.value = pr.expr; $('preset').appendChild(o); });
+
+  var localZone = (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time'; } catch (e) { return 'local time'; } })();
+  var o1 = el('option', '', 'Local (' + localZone + ')'); o1.value = 'local';
+  var o2 = el('option', '', 'UTC'); o2.value = 'UTC';
+  $('tz').appendChild(o1); $('tz').appendChild(o2);
+
+  var render = function (syncFields) {
+    var text = $('expr').value, p = parseExpression(text);
+    var tokens = text.trim().split(/\s+/);
+    if (syncFields) {
+      var raw = p.fieldRaw || (tokens.length === 5 ? tokens : null);
+      if (raw) FIELDS.forEach(function (s, i) { inputs[s.id].value = raw[i] === '*' ? '' : raw[i]; });
+    }
+    $('expr').setAttribute('aria-invalid', String(!p.ok));
+    FIELDS.forEach(function (s) {
+      var msg = p.ok ? '' : (p.errors && p.errors[s.id]) || '';
+      $('err-' + s.id).textContent = msg ? msg.replace(s.label + ': ', '') : '';
+      inputs[s.id].setAttribute('aria-invalid', String(!!msg));
+    });
+    var explain = $('explain'), note = $('note'), runs = $('runs');
+    runs.textContent = ''; $('runsNote').textContent = '';
+    if (!p.ok) {
+      explain.className = 'explain bad'; explain.textContent = text.trim() ? p.error : '';
+      note.textContent = '';
+      return;
+    }
+    explain.className = 'explain'; explain.textContent = describe(p);
+    note.textContent = (p.macro ? p.macro + ' is shorthand for ' + p.fieldRaw.join(' ') + '. ' : '') +
+      (p.bothDays ? 'Both day-of-month and day-of-week are set, so it runs when either one matches.' : '');
+    var tz = $('tz').value, now = new Date(), list = nextRuns(p, now, parseInt($('count').value, 10), tz);
+    if (!list.length) {
+      var li = el('li', 'empty', 'No run in the next ' + HORIZON_YEARS + ' years. This schedule never matches (for example, February 30).');
+      runs.appendChild(li);
+    }
+    list.forEach(function (d) {
+      var li = el('li'); li.appendChild(el('span', '', fmtRun(d, tz)));
+      li.appendChild(el('span', 'rel', fmtRelative(d.getTime() - now.getTime())));
+      runs.appendChild(li);
+    });
+    if (list.length) $('runsNote').textContent = tz === 'UTC' ? 'Shown in UTC.' : 'Shown in your local time zone. A time skipped by a clock change does not appear.';
+  };
+
+  $('expr').addEventListener('input', function () { $('preset').value = ''; render(true); });
+  $('preset').addEventListener('change', function (e) { if (e.target.value) { $('expr').value = e.target.value; render(true); } });
+  $('count').addEventListener('change', function () { render(false); });
+  $('tz').addEventListener('change', function () { render(false); });
+  $('refresh').addEventListener('click', function () { render(false); });
+
+  $('expr').value = '*/15 9-17 * * 1-5';
+  render(true);
+}
+</script>
+</body>
+</html>
