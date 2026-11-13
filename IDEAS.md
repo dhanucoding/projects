@@ -124,7 +124,8 @@ When an idea ships, flip its `status` to `done` and add `shipped:` (date) and
     one-liner: A focus timer with work/break intervals and a running task list.
     notes: localStorage for session history/streaks; browser notification + sound on interval end.
 
-16. status: pending
+16. status: done
+    shipped: 2026-11-12 (branch app/habit-tracker)
     slug: habit-tracker
     name: Habit Tracker
     one-liner: Track daily habits with a checklist and streak counters.

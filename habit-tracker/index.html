@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Habit Tracker</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg:#f6f1ea; --card:#fffdf9; --ink:#2b2622; --muted:#6d625a; --accent:#2f7d5b; --on-accent:#fff; --line:#e4dacd; --field:#fff;
+    --h0:#ebe5db; --h1:#bfe3cc; --h2:#86c9a2; --h3:#49a574; --h4:#237a52; --future:transparent;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg:#171412; --card:#211d1a; --ink:#f2eae2; --muted:#ab9f95; --accent:#5fcf97; --on-accent:#10241a; --line:#3a332e; --field:#2a2521;
+      --h0:#2e2924; --h1:#1f4a36; --h2:#2a7050; --h3:#3fa070; --h4:#5fcf97;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  h2 { margin: 0 0 10px; font-size: 1rem; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  button, select { font:inherit; color:inherit; }
+  button { padding:6px 12px; border:1px solid var(--accent); background:transparent; color:var(--accent); border-radius:8px; font-size:.85rem; cursor:pointer; }
+  button:disabled { cursor:default; opacity:.5; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  input[type=text], select { padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:var(--field); color:var(--ink); }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--field); }
+  .stat .num { font-size:1.35rem; font-weight:600; font-variant-numeric: tabular-nums; }
+  .stat .label { color:var(--muted); font-size:.8rem; }
+  .addrow { display:flex; gap:8px; }
+  .addrow input { flex:1; min-width:0; }
+  .msg { color:var(--muted); font-size:.82rem; min-height:1.2em; margin-top:6px; }
+  ul { list-style:none; margin:0; padding:0; }
+  li.habit { display:grid; grid-template-columns: auto 1fr auto; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  li.habit:first-child { border-top:0; }
+  .check { width:40px; height:40px; border-radius:50%; border:2px solid var(--accent); background:transparent; font-size:1.2rem; line-height:1; padding:0; color:var(--on-accent); }
+  .check[aria-pressed="true"] { background:var(--accent); }
+  .hname { word-break:break-word; font-weight:600; }
+  .hmeta { color:var(--muted); font-size:.8rem; margin-top:2px; font-variant-numeric: tabular-nums; }
+  .hactions { display:flex; gap:6px; }
+  li.habit.selected .hname { color:var(--accent); }
+  .empty { color:var(--muted); font-size:.9rem; padding:6px 0; }
+  .heatbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .heatwrap { overflow-x:auto; padding-bottom:6px; }
+  .months { position:relative; height:16px; font-size:.7rem; color:var(--muted); }
+  .months span { position:absolute; top:0; }
+  .heat { display:grid; grid-auto-flow:column; grid-template-rows: repeat(7, 14px); grid-auto-columns:14px; gap:3px; }
+  .cell { width:14px; height:14px; border-radius:3px; padding:0; border:0; background:var(--h0); }
+  .cell.l1 { background:var(--h1); } .cell.l2 { background:var(--h2); } .cell.l3 { background:var(--h3); } .cell.l4 { background:var(--h4); }
+  .cell.future { background:var(--future); border:1px dashed var(--line); }
+  button.cell:not(:disabled):hover { outline:2px solid var(--accent); outline-offset:1px; }
+  .legend { display:flex; align-items:center; gap:4px; color:var(--muted); font-size:.75rem; margin-top:8px; }
+  .hint { color:var(--muted); font-size:.82rem; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Habit Tracker</h1>
+  <p class="sub" id="today"></p>
+
+  <div class="panel" aria-live="polite">
+    <div class="grid" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Habits</h2>
+    <form class="addrow" id="addForm">
+      <input type="text" id="name" aria-label="New habit" placeholder="New habit, e.g. Read 20 minutes" maxlength="80" autocomplete="off">
+      <button type="submit">Add</button>
+    </form>
+    <div class="msg" id="msg" role="status"></div>
+    <ul id="habits"></ul>
+  </div>
+
+  <div class="panel">
+    <div class="heatbar">
+      <h2 style="margin:0">Last 26 weeks</h2>
+      <select id="scope" aria-label="Show activity for"></select>
+    </div>
+    <div class="heatwrap" id="heatwrap">
+      <div class="months" id="months"></div>
+      <div class="heat" id="heat" role="img" aria-label="Activity heatmap"></div>
+    </div>
+    <div class="legend">Less <span class="cell" style="display:inline-block"></span><span class="cell l1" style="display:inline-block"></span><span class="cell l2" style="display:inline-block"></span><span class="cell l3" style="display:inline-block"></span><span class="cell l4" style="display:inline-block"></span> More</div>
+    <div class="hint" id="heatHint"></div>
+  </div>
+</main>
+
+<script>
+// ---- core (tested by test.js; keep free of DOM access) ----
+// CORE-START
+var MAX_HABITS = 50, MAX_NAME = 60, MAX_DAYS = 3660, WEEKS = 26;
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var DAY_MS = 86400000;
+
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+// Local calendar day as YYYY-MM-DD.
+function dayKey(date) {
+  var d = date instanceof Date ? date : new Date(date);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+// UTC milliseconds for a valid YYYY-MM-DD key, else null (rejects 2026-02-31, 2026-13-01, short years).
+function parseDay(key) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof key === 'string' ? key : '');
+  if (!m) return null;
+  var y = +m[1], mo = +m[2], d = +m[3], t = Date.UTC(y, mo - 1, d), dt = new Date(t);
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return t;
+}
+
+// Day arithmetic through UTC so daylight-saving changes never skip or repeat a day.
+function shiftDay(key, delta) {
+  var t = parseDay(key);
+  if (t === null) return key;
+  var d = new Date(t + delta * DAY_MS);
+  return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
+}
+
+function daysBetween(a, b) { return Math.round((parseDay(b) - parseDay(a)) / DAY_MS); }
+function weekday(key) { return new Date(parseDay(key)).getUTCDay(); } // 0 = Sunday
+
+function fmtDate(key) {
+  var t = parseDay(key);
+  if (t === null) return '';
+  var d = new Date(t);
+  return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
+}
+function fmtNum(n) { return typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '—'; }
+function fmtPct(f) { return typeof f === 'number' && isFinite(f) ? Math.round(f * 100) + '%' : '—'; }
+
+// days is a { 'YYYY-MM-DD': true } set. Counts consecutive checked days ending today; if today
+// isn't checked yet the streak still counts through yesterday, so it only breaks once a day is missed.
+function streak(days, today) {
+  if (parseDay(today) === null || !days) return 0;
+  var cursor = days[today] ? today : shiftDay(today, -1), n = 0;
+  while (days[cursor] === true && n <= MAX_DAYS) { n++; cursor = shiftDay(cursor, -1); }
+  return n;
+}
+
+function checkedDays(days, today) {
+  return Object.keys(days || {}).filter(function (k) { return days[k] === true && parseDay(k) !== null && k <= today; }).sort();
+}
+function totalCheckins(days, today) { return checkedDays(days, today).length; }
+
+function bestStreak(days, today) {
+  var best = 0, run = 0, prev = null;
+  checkedDays(days, today).forEach(function (k) {
+    run = prev && shiftDay(prev, 1) === k ? run + 1 : 1;
+    if (run > best) best = run;
+    prev = k;
+  });
+  return best;
+}
+
+// Earliest day a habit "counts" from: its creation day, or an earlier backfilled check.
+function firstDay(created, days, today) {
+  var first = parseDay(created) !== null ? created : today;
+  var keys = checkedDays(days, today);
+  return keys.length && keys[0] < first ? keys[0] : first;
+}
+
+// Share of days checked over the last `window` days (shorter for a young habit). 0..1.
+function completionRate(days, created, today, window) {
+  if (parseDay(today) === null) return 0;
+  window = window || 30;
+  var ws = shiftDay(today, -(window - 1));
+  var start = firstDay(created, days, today);
+  if (start < ws) start = ws;
+  if (start > today) start = today;
+  var span = daysBetween(start, today) + 1;
+  var checked = checkedDays(days, today).filter(function (k) { return k >= start; }).length;
+  return span > 0 ? checked / span : 0;
+}
+
+// '' when OK, else 'empty' | 'duplicate' | 'limit'. Duplicates ignore case, accents, and spacing.
+function cleanName(name) { return Array.from(String(name == null ? '' : name).replace(/\s+/g, ' ').trim()).slice(0, MAX_NAME).join(''); }
+function nameKey(name) { return cleanName(name).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase(); }
+function validateName(habits, name) {
+  if (!cleanName(name)) return 'empty';
+  if ((habits || []).length >= MAX_HABITS) return 'limit';
+  var key = nameKey(name);
+  return (habits || []).some(function (h) { return nameKey(h.name) === key; }) ? 'duplicate' : '';
+}
+function addHabit(habits, name, id, today) {
+  var list = Array.isArray(habits) ? habits : [];
+  if (validateName(list, name)) return list;
+  return list.concat([{ id: id, name: cleanName(name), created: parseDay(today) !== null ? today : dayKey(new Date()) }]);
+}
+function removeHabit(habits, log, id) {
+  var nextLog = Object.assign({}, log);
+  delete nextLog[id];
+  return { habits: habits.filter(function (h) { return h.id !== id; }), log: nextLog };
+}
+
+// Toggle one day. Future and invalid days are refused (returns the same object). Immutable.
+function toggleDay(log, id, day, today) {
+  if (parseDay(day) === null || parseDay(today) === null || day > today) return log;
+  var next = Object.assign({}, log), set = Object.assign({}, log[id]);
+  if (set[day]) delete set[day]; else set[day] = true;
+  if (Object.keys(set).length) next[id] = set; else delete next[id];
+  return next;
+}
+
+function levelFor(checked, total) {
+  if (!total || !checked) return 0;
+  var r = checked / total;
+  return r <= 0.25 ? 1 : r <= 0.5 ? 2 : r <= 0.75 ? 3 : 4;
+}
+
+// Calendar grid, Sunday-first like GitHub: `weeks` columns of 7 cells, today in the last column.
+// selectedId = one habit (checked or not), or null = share of habits done that day.
+function heatmap(habits, log, selectedId, today, weeks) {
+  weeks = weeks || WEEKS;
+  var lastStart = shiftDay(today, -weekday(today));
+  var first = shiftDay(lastStart, -7 * (weeks - 1));
+  var cols = [];
+  for (var c = 0; c < weeks; c++) {
+    var col = [];
+    for (var r = 0; r < 7; r++) {
+      var day = shiftDay(first, c * 7 + r), future = day > today, checked = 0, total = 0;
+      if (!future) {
+        if (selectedId) { total = 1; checked = log[selectedId] && log[selectedId][day] ? 1 : 0; }
+        else habits.forEach(function (h) {
+          var done = log[h.id] && log[h.id][day] ? 1 : 0;
+          if (h.created <= day || done) { total++; checked += done; } // habits don't count against days before they existed
+        });
+      }
+      col.push({ day: day, future: future, checked: checked, total: total, level: future ? 0 : levelFor(checked, total) });
+    }
+    cols.push(col);
+  }
+  return cols;
+}
+
+// Month labels above the grid; skips a label that would crowd the previous one.
+function monthLabels(cols) {
+  var out = [], prevMonth = -1, lastCol = -10;
+  cols.forEach(function (col, i) {
+    var m = new Date(parseDay(col[0].day)).getUTCMonth();
+    if (m !== prevMonth) {
+      if (i - lastCol >= 3) { out.push({ col: i, label: MONTHS[m] }); lastCol = i; }
+      prevMonth = m;
+    }
+  });
+  return out;
+}
+
+// Parse saved JSON defensively: corrupt or hostile data yields an empty state, never a throw.
+function loadState(json, today) {
+  var raw = null;
+  try { raw = JSON.parse(json); } catch (e) { raw = null; }
+  if (!raw || typeof raw !== 'object') raw = {};
+  var seen = Object.create(null);
+  var habits = (Array.isArray(raw.habits) ? raw.habits : []).filter(function (h) {
+    if (!h || typeof h !== 'object' || typeof h.id !== 'string' || !h.id || h.id === '__proto__' || h.id.length > 40 || seen[h.id] || typeof h.name !== 'string' || !cleanName(h.name)) return false;
+    seen[h.id] = true; return true;
+  }).slice(0, MAX_HABITS).map(function (h) {
+    return { id: h.id, name: cleanName(h.name), created: parseDay(h.created) !== null ? h.created : today };
+  });
+  var log = {}, rawLog = raw.log && typeof raw.log === 'object' && !Array.isArray(raw.log) ? raw.log : {};
+  habits.forEach(function (h) {
+    var v = Object.prototype.hasOwnProperty.call(rawLog, h.id) ? rawLog[h.id] : null;
+    var keys = Array.isArray(v) ? v : v && typeof v === 'object' ? Object.keys(v).filter(function (k) { return v[k] === true; }) : [];
+    keys = keys.filter(function (k) { return parseDay(k) !== null; }).sort().slice(-MAX_DAYS);
+    if (keys.length) { log[h.id] = {}; keys.forEach(function (k) { log[h.id][k] = true; }); }
+  });
+  return { habits: habits, log: log };
+}
+// CORE-END
+
+// ---- UI ----
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = 'habit-tracker-v1';
+  var today = dayKey(new Date());
+  var state = (function () {
+    try { return loadState(localStorage.getItem(KEY), today); } catch (e) { return loadState(null, today); }
+  })();
+  var selected = null, armedDelete = null;
+  var save = function () {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable: keep in memory */ }
+  };
+  var tile = function (host, label, value) {
+    var d = document.createElement('div'); d.className = 'stat';
+    var n = document.createElement('div'); n.className = 'num'; n.textContent = value;
+    var l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+    d.appendChild(n); d.appendChild(l); host.appendChild(d);
+  };
+  var el = function (tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  };
+
+  var renderStats = function () {
+    var host = $('stats'); host.textContent = '';
+    var done = state.habits.filter(function (h) { return state.log[h.id] && state.log[h.id][today]; }).length;
+    var longest = 0, total = 0;
+    state.habits.forEach(function (h) {
+      longest = Math.max(longest, streak(state.log[h.id], today));
+      total += totalCheckins(state.log[h.id], today);
+    });
+    tile(host, 'Done today', fmtNum(done) + ' / ' + fmtNum(state.habits.length));
+    tile(host, 'Longest current streak', fmtNum(longest) + ' d');
+    tile(host, 'Total check-ins', fmtNum(total));
+  };
+
+  var renderHabits = function () {
+    var ul = $('habits'); ul.textContent = '';
+    if (!state.habits.length) ul.appendChild(el('li', 'empty', 'No habits yet. Add one above.'));
+    state.habits.forEach(function (h) {
+      var days = state.log[h.id] || {};
+      var li = el('li', 'habit' + (h.id === selected ? ' selected' : ''));
+      var chk = el('button', 'check', days[today] ? '✓' : ''); chk.type = 'button';
+      chk.setAttribute('aria-pressed', String(!!days[today]));
+      chk.setAttribute('aria-label', 'Done today: ' + h.name);
+      chk.addEventListener('click', function () { state.log = toggleDay(state.log, h.id, today, today); save(); renderAll(); });
+      var info = el('div');
+      info.appendChild(el('div', 'hname', h.name));
+      info.appendChild(el('div', 'hmeta', '🔥 ' + fmtNum(streak(days, today)) + ' d  ·  best ' + fmtNum(bestStreak(days, today)) + ' d  ·  30-day ' + fmtPct(completionRate(days, firstDay(h.created, days, today), today, 30))));
+      var actions = el('div', 'hactions');
+      var view = el('button', '', h.id === selected ? 'Showing' : 'Calendar'); view.type = 'button';
+      view.addEventListener('click', function () { selected = h.id === selected ? null : h.id; renderAll(); });
+      var del = el('button', '', armedDelete === h.id ? 'Confirm' : '✕'); del.type = 'button';
+      del.setAttribute('aria-label', 'Delete habit: ' + h.name);
+      del.addEventListener('click', function () {
+        if (armedDelete !== h.id) { armedDelete = h.id; renderHabits(); setTimeout(function () { if (armedDelete === h.id) { armedDelete = null; renderHabits(); } }, 4000); return; }
+        var r = removeHabit(state.habits, state.log, h.id);
+        state.habits = r.habits; state.log = r.log; armedDelete = null;
+        if (selected === h.id) selected = null;
+        save(); renderAll();
+      });
+      actions.appendChild(view); actions.appendChild(del);
+      li.appendChild(chk); li.appendChild(info); li.appendChild(actions);
+      ul.appendChild(li);
+    });
+  };
+
+  var renderHeat = function () {
+    var sel = $('scope'); sel.textContent = '';
+    var all = el('option', '', 'All habits'); all.value = ''; sel.appendChild(all);
+    state.habits.forEach(function (h) { var o = el('option', '', h.name); o.value = h.id; sel.appendChild(o); });
+    sel.value = selected || '';
+    var cols = heatmap(state.habits, state.log, selected, today, WEEKS);
+    var heat = $('heat'); heat.textContent = '';
+    var months = $('months'); months.textContent = ''; months.style.width = (WEEKS * 17) + 'px';
+    monthLabels(cols).forEach(function (m) { var s = el('span', '', m.label); s.style.left = (m.col * 17) + 'px'; months.appendChild(s); });
+    cols.forEach(function (col) {
+      col.forEach(function (c) {
+        var label = fmtDate(c.day) + (c.future ? '' : selected ? (c.checked ? ': done' : ': not done') : ': ' + c.checked + ' of ' + c.total + ' habits');
+        var cell;
+        if (selected && !c.future) {
+          cell = el('button', 'cell l' + c.level); cell.type = 'button';
+          cell.addEventListener('click', function () { state.log = toggleDay(state.log, selected, c.day, today); save(); renderAll(); });
+        } else {
+          cell = el('div', 'cell l' + c.level + (c.future ? ' future' : ''));
+        }
+        cell.title = label; cell.setAttribute('aria-label', label);
+        heat.appendChild(cell);
+      });
+    });
+    $('heatHint').textContent = !state.habits.length ? 'Add a habit to start filling in the calendar.'
+      : selected ? 'Click a day to mark or unmark it, e.g. to fill in a day you missed logging.'
+      : 'Darker means more of your habits were done that day. Pick a habit to edit past days.';
+    var wrap = $('heatwrap'); wrap.scrollLeft = wrap.scrollWidth;
+  };
+
+  var renderAll = function () {
+    $('today').textContent = 'Today is ' + fmtDate(today) + '. Check habits off as you go; streaks survive until a day is missed.';
+    renderStats(); renderHabits(); renderHeat();
+  };
+
+  $('addForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = $('name').value, problem = validateName(state.habits, name);
+    if (problem) {
+      $('msg').textContent = problem === 'empty' ? 'Type a habit name first.' : problem === 'duplicate' ? 'You already track that habit.' : 'Habit limit reached (' + MAX_HABITS + ').';
+      return;
+    }
+    var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    state.habits = addHabit(state.habits, name, id, today);
+    $('name').value = ''; $('msg').textContent = ''; save(); renderAll();
+  });
+  $('scope').addEventListener('change', function (e) { selected = e.target.value || null; renderAll(); });
+
+  // Roll over to the new day if the page stays open past midnight.
+  var rollover = function () {
+    var now = dayKey(new Date());
+    if (now !== today) { today = now; renderAll(); }
+  };
+  setInterval(rollover, 30000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) rollover(); });
+
+  renderAll();
+}
+</script>
+</body>
+</html>
